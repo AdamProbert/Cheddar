@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
+#define SERVO_COUNT 6  // use PCA9685 channels 0..5
+
 // Convert microseconds to PCA9685 ticks (0..4095)
 static uint16_t usToTicks(uint16_t us) {
   // ticks = us * freq * 4096 / 1e6
@@ -15,14 +17,41 @@ static void writeServoUS(uint8_t ch, uint16_t us) {
   pwm.setPWM(ch, 0, usToTicks(us));
 }
 
-// Map steer [0..1] -> microseconds, with gentle easing at ends
-void writeSteer(float f01) {
+// NEW: write any servo (by index 0..5) using 0..1 fraction with easing
+void writeServoFrac(uint8_t idx, float f01) {
+  if (idx >= SERVO_COUNT) return;
   if (f01 < 0) f01 = 0;
   if (f01 > 1) f01 = 1;
+  float eased = 0.5f - 0.5f * cosf(f01 * 3.14159265f);
+  uint16_t us = (uint16_t)(SERVO_MIN_US + eased * (SERVO_MAX_US - SERVO_MIN_US));
+  writeServoUS(idx, us);   // channel == idx (0..5)
+}
+
+// Map steer [0..1] -> microseconds, with gentle easing at ends (uses SERVO_CH)
+void writeSteer(uint8_t channel, float f01) {
+  if (f01 < 0) f01 = 0;
+  if (f01 > 1) f01 = 1;
+  float eased = 0.5f - 0.5f * cosf(f01 * 3.14159265f);
+  uint16_t us = (uint16_t)(SERVO_MIN_US + eased * (SERVO_MAX_US - SERVO_MIN_US));
+  writeServoUS(channel, us);
+}
+
+// Write to each servo channel
+void writeSteerAll(float f01) {
+  if (f01 < 0) f01 = 0;
+  if (f01 > 1) f01 = 1;
+
   // cosine ease-in-out for smoother approach near extremes
   float eased = 0.5f - 0.5f * cosf(f01 * 3.14159265f);
   uint16_t us = (uint16_t)(SERVO_MIN_US + eased * (SERVO_MAX_US - SERVO_MIN_US));
-  writeServoUS(SERVO_CH, us);
+
+  // Write to each defined channel
+  writeServoUS(SERVO_CH_0, us);
+  writeServoUS(SERVO_CH_1, us);
+  writeServoUS(SERVO_CH_2, us);
+  writeServoUS(SERVO_CH_3, us);
+  writeServoUS(SERVO_CH_4, us);
+  writeServoUS(SERVO_CH_5, us);
 }
 
 void servoInit() {
@@ -32,7 +61,12 @@ void servoInit() {
   } else {
     pwm.setPWMFreq(SERVO_FREQ);
     delay(10);
-    writeSteer(steerCmd); // center (uses current steerCmd)
-    Serial.println("Servo: PCA9685 ready.");
+    // Center all 6 servos on channels 0..5
+    for (uint8_t i = 0; i < SERVO_COUNT; ++i) {
+      writeServoFrac(i, 0.5f);
+    }
+    // Also set the steering channel (keeps your existing behavior)
+    writeSteerAll(steerCmd);
+    Serial.println("Servo: PCA9685 ready (6 channels: 0..5).");
   }
 }

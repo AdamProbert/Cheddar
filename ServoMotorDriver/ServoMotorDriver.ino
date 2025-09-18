@@ -17,7 +17,13 @@
 const uint16_t SERVO_MIN_US = 500;
 const uint16_t SERVO_MAX_US = 2500;
 const float    SERVO_FREQ   = 50.0f;    // 50 Hz for hobby servos
-const uint8_t  SERVO_CH     = 0;        // channel 0 on PCA9685
+const uint8_t  SERVO_CH_0     = 0;        // channel 0 on PCA9685
+const uint8_t  SERVO_CH_1     = 1;        // channel 1 on PCA9685
+const uint8_t  SERVO_CH_2     = 2;        // channel 2 on PCA9685
+const uint8_t  SERVO_CH_3     = 3;        // channel 3 on PCA9685
+const uint8_t  SERVO_CH_4     = 4;        // channel 4 on PCA9685
+const uint8_t  SERVO_CH_5     = 5;        // channel 5 on PCA9685
+
 
 // Motor PWM
 const uint32_t MOTOR_PWM_FREQ_HZ  = 20000; // 20 kHz (quiet)
@@ -48,6 +54,7 @@ void setMotorSigned(float v);
 // from servos.ino
 void servoInit();
 void writeSteer(float f01);
+void writeSteerAll(uint8_t channel, float f01);
 // from serial_input.ino
 void applySerialCommands();
 
@@ -89,6 +96,6 @@ void loop() {
 
     // apply outputs
     setMotorSigned(speedCmd);
-    writeSteer(steerCmd);
+    writeSteerAll(steerCmd);
   }
 }
