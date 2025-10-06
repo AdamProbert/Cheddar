@@ -11,6 +11,9 @@ constexpr int PIN_UART2_TX = 17; // ESP32 TX2
 // DRV8833 STBY (shared)
 constexpr int PIN_DRV_STBY = 27;
 
+// PCA9685 Output Enable (active low)
+constexpr int PIN_PCA9685_OE = 5;
+
 // Driver A (M1, M2)
 constexpr int PIN_M1_IN1 = 13;
 constexpr int PIN_M1_IN2 = 14;
