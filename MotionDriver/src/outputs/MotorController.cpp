@@ -3,15 +3,33 @@
 namespace outputs
 {
 
-    MotorController::MotorController(int in1Pin, int in2Pin, int standbyPin)
-        : m_in1Pin(in1Pin),
-          m_in2Pin(in2Pin),
-          m_standbyPin(standbyPin),
-          m_direction(Direction::Forward),
-          m_targetSpeed(0.0f),
-          m_initialized(false),
-          m_enabled(false)
+    namespace
     {
+        constexpr int kMotorIn1Pins[MotorController::kMotorCount] = {
+            PIN_M1_IN1, PIN_M2_IN1, PIN_M3_IN1,
+            PIN_M4_IN1, PIN_M5_IN1, PIN_M6_IN1};
+
+        constexpr int kMotorIn2Pins[MotorController::kMotorCount] = {
+            PIN_M1_IN2, PIN_M2_IN2, PIN_M3_IN2,
+            PIN_M4_IN2, PIN_M5_IN2, PIN_M6_IN2};
+    }
+
+    MotorController::MotorController(int standbyPin)
+        : m_standbyPin(standbyPin),
+          m_initialized(false),
+          m_driverEnabled(false)
+    {
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            auto &motor = m_motors[index];
+            motor.in1Pin = kMotorIn1Pins[index];
+            motor.in2Pin = kMotorIn2Pins[index];
+            motor.channelA = index * kChannelsPerMotor;
+            motor.channelB = motor.channelA + 1;
+            motor.direction = Direction::Forward;
+            motor.targetSpeed = 0.0f;
+            motor.outputEnabled = false;
+        }
     }
 
     bool MotorController::begin()
@@ -19,69 +37,172 @@ namespace outputs
         pinMode(m_standbyPin, OUTPUT);
         digitalWrite(m_standbyPin, LOW);
 
-        ledcSetup(kPwmChannelA, kPwmFrequencyHz, kPwmResolutionBits);
-        ledcSetup(kPwmChannelB, kPwmFrequencyHz, kPwmResolutionBits);
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            auto &motor = m_motors[index];
 
-        ledcAttachPin(m_in1Pin, kPwmChannelA);
-        ledcAttachPin(m_in2Pin, kPwmChannelB);
+            pinMode(motor.in1Pin, OUTPUT);
+            pinMode(motor.in2Pin, OUTPUT);
+            digitalWrite(motor.in1Pin, LOW);
+            digitalWrite(motor.in2Pin, LOW);
 
-        disableOutputs();
+            ledcSetup(motor.channelA, kPwmFrequencyHz, kPwmResolutionBits);
+            ledcSetup(motor.channelB, kPwmFrequencyHz, kPwmResolutionBits);
+
+            ledcAttachPin(motor.in1Pin, motor.channelA);
+            ledcAttachPin(motor.in2Pin, motor.channelB);
+
+            ledcWrite(motor.channelA, 0);
+            ledcWrite(motor.channelB, 0);
+        }
 
         m_initialized = true;
-        m_enabled = false;
-        m_direction = Direction::Forward;
-        m_targetSpeed = 0.0f;
+        m_driverEnabled = false;
+
         return true;
     }
 
-    void MotorController::run(Direction direction, float speed, bool autoEnable)
+    void MotorController::run(uint8_t motorIndex, Direction direction, float speed, bool autoEnable)
+    {
+        if (!m_initialized || !validIndex(motorIndex))
+        {
+            return;
+        }
+
+        auto &motor = m_motors[motorIndex];
+        motor.direction = direction;
+        motor.targetSpeed = clampSpeed(speed);
+
+        if (motor.targetSpeed == 0.0f)
+        {
+            motor.outputEnabled = false;
+        }
+        else if (autoEnable)
+        {
+            motor.outputEnabled = true;
+        }
+
+        applyOutput(motorIndex);
+        updateStandby();
+    }
+
+    void MotorController::runAll(Direction direction, float speed, bool autoEnable)
     {
         if (!m_initialized)
         {
             return;
         }
 
-        m_direction = direction;
-        m_targetSpeed = clampSpeed(speed);
+        const float clamped = clampSpeed(speed);
 
-        if (autoEnable && m_targetSpeed > 0.0f)
+        for (uint8_t index = 0; index < kMotorCount; ++index)
         {
-            if (!m_enabled)
+            auto &motor = m_motors[index];
+            motor.direction = direction;
+            motor.targetSpeed = clamped;
+            if (motor.targetSpeed == 0.0f)
             {
-                digitalWrite(m_standbyPin, HIGH);
-                m_enabled = true;
+                motor.outputEnabled = false;
             }
+            else if (autoEnable)
+            {
+                motor.outputEnabled = true;
+            }
+            applyOutput(index);
         }
 
-        applyOutput();
+        updateStandby();
     }
 
-    void MotorController::start()
+    void MotorController::start(uint8_t motorIndex)
+    {
+        if (!m_initialized || !validIndex(motorIndex))
+        {
+            return;
+        }
+
+        auto &motor = m_motors[motorIndex];
+        motor.outputEnabled = motor.targetSpeed > 0.0f;
+        applyOutput(motorIndex);
+        updateStandby();
+    }
+
+    void MotorController::startAll()
     {
         if (!m_initialized)
         {
             return;
         }
 
-        if (!m_enabled)
+        for (uint8_t index = 0; index < kMotorCount; ++index)
         {
-            digitalWrite(m_standbyPin, HIGH);
-            m_enabled = true;
+            auto &motor = m_motors[index];
+            motor.outputEnabled = motor.targetSpeed > 0.0f;
+            applyOutput(index);
         }
 
-        applyOutput();
+        updateStandby();
     }
 
-    void MotorController::stop()
+    void MotorController::stop(uint8_t motorIndex)
+    {
+        if (!m_initialized || !validIndex(motorIndex))
+        {
+            return;
+        }
+
+        auto &motor = m_motors[motorIndex];
+        motor.outputEnabled = false;
+        applyOutput(motorIndex);
+        updateStandby();
+    }
+
+    void MotorController::stopAll()
     {
         if (!m_initialized)
         {
             return;
         }
 
-        disableOutputs();
-        digitalWrite(m_standbyPin, LOW);
-        m_enabled = false;
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            m_motors[index].outputEnabled = false;
+            applyOutput(index);
+        }
+
+        updateStandby();
+    }
+
+    MotorController::Direction MotorController::direction(uint8_t motorIndex) const
+    {
+        if (!validIndex(motorIndex))
+        {
+            return Direction::Forward;
+        }
+        return m_motors[motorIndex].direction;
+    }
+
+    float MotorController::targetSpeed(uint8_t motorIndex) const
+    {
+        if (!validIndex(motorIndex))
+        {
+            return 0.0f;
+        }
+        return m_motors[motorIndex].targetSpeed;
+    }
+
+    bool MotorController::motorEnabled(uint8_t motorIndex) const
+    {
+        if (!validIndex(motorIndex))
+        {
+            return false;
+        }
+        return m_motors[motorIndex].outputEnabled;
+    }
+
+    bool MotorController::validIndex(uint8_t motorIndex) const
+    {
+        return motorIndex < kMotorCount;
     }
 
     float MotorController::clampSpeed(float speed) const
@@ -97,34 +218,77 @@ namespace outputs
         return speed;
     }
 
-    void MotorController::applyOutput()
+    void MotorController::applyOutput(uint8_t motorIndex)
     {
-        const uint32_t maxDuty = (1u << kPwmResolutionBits) - 1u;
-        const uint32_t duty = static_cast<uint32_t>(m_targetSpeed * static_cast<float>(maxDuty) + 0.5f);
-
-        if (!m_enabled || duty == 0)
+        if (!validIndex(motorIndex))
         {
-            ledcWrite(kPwmChannelA, 0);
-            ledcWrite(kPwmChannelB, 0);
             return;
         }
 
-        if (m_direction == Direction::Forward)
+        const auto &motor = m_motors[motorIndex];
+        const uint32_t maxDuty = (1u << kPwmResolutionBits) - 1u;
+        const uint32_t duty = static_cast<uint32_t>(motor.targetSpeed * static_cast<float>(maxDuty) + 0.5f);
+
+        if (!motor.outputEnabled || duty == 0)
         {
-            ledcWrite(kPwmChannelA, duty);
-            ledcWrite(kPwmChannelB, 0);
+            ledcWrite(motor.channelA, 0);
+            ledcWrite(motor.channelB, 0);
+            return;
+        }
+
+        if (motor.direction == Direction::Forward)
+        {
+            ledcWrite(motor.channelA, duty);
+            ledcWrite(motor.channelB, 0);
         }
         else
         {
-            ledcWrite(kPwmChannelA, 0);
-            ledcWrite(kPwmChannelB, duty);
+            ledcWrite(motor.channelA, 0);
+            ledcWrite(motor.channelB, duty);
+        }
+    }
+
+    void MotorController::updateStandby()
+    {
+        bool anyActive = false;
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            const auto &motor = m_motors[index];
+            if (motor.outputEnabled && motor.targetSpeed > 0.0f)
+            {
+                anyActive = true;
+                break;
+            }
+        }
+
+        if (anyActive)
+        {
+            if (!m_driverEnabled)
+            {
+                digitalWrite(m_standbyPin, HIGH);
+                m_driverEnabled = true;
+            }
+        }
+        else
+        {
+            if (m_driverEnabled)
+            {
+                digitalWrite(m_standbyPin, LOW);
+                m_driverEnabled = false;
+            }
         }
     }
 
     void MotorController::disableOutputs()
     {
-        ledcWrite(kPwmChannelA, 0);
-        ledcWrite(kPwmChannelB, 0);
-    }
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            const auto &motor = m_motors[index];
+            ledcWrite(motor.channelA, 0);
+            ledcWrite(motor.channelB, 0);
+        }
 
+        digitalWrite(m_standbyPin, LOW);
+        m_driverEnabled = false;
+    }
 } // namespace outputs

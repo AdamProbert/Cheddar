@@ -22,9 +22,10 @@ namespace inputs
         void handleServoCommand(char *channelToken, char *pulseToken);
         void handleSweepCommand(char *stateToken, char *rangeToken);
         void handleTelemetryCommand(char *stateToken);
-        void handleMotorCommand(char *modeToken, char *valueToken, char *extraToken);
+        void handleMotorCommand(char *targetToken, char *modeToken, char *valueToken, char *extraToken);
         void handleHelpCommand();
         bool parseSweepRangeToken(char *token, uint8_t &startChannel, uint8_t &endChannel, bool &isAllRequest);
+        bool parseMotorTargetToken(char *token, uint8_t &motorIndex, bool &isAllRequest);
         void reportError(const char *message);
 
         static constexpr size_t kBufferSize = 64;
