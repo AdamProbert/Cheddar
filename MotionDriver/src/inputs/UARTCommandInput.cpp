@@ -7,6 +7,14 @@
 namespace inputs
 {
 
+    namespace
+    {
+        // Source of truth lives in docs/cli_help.txt. Update that file when editing help copy.
+        static constexpr char kHelpText[] =
+#include "../../docs/cli_help.txt"
+            ;
+    }
+
     UARTCommandInput::UARTCommandInput(HardwareSerial &serial, outputs::ServoController &servoController, outputs::MotorController &motorController)
         : m_serial(serial),
           m_servoController(servoController),
@@ -342,74 +350,7 @@ namespace inputs
 
     void UARTCommandInput::handleHelpCommand()
     {
-        m_serial.println(F("NAME"));
-        m_serial.println(F("    cheddar-cli - MotionDriver serial command interface"));
-        m_serial.println();
-
-        m_serial.println(F("SYNOPSIS"));
-        m_serial.println(F("    PING"));
-        m_serial.println(F("    S <channel> <microseconds>"));
-        m_serial.println(F("    SWEEP ON|OFF [channel|start-end|ALL]"));
-        m_serial.println(F("    MOTOR <target> FORWARD|BACKWARD [speed]"));
-        m_serial.println(F("    MOTOR <target> STOP"));
-        m_serial.println(F("    MOTOR <target> START"));
-        m_serial.println(F("    LOG ON|OFF"));
-        m_serial.println(F("    HELP"));
-        m_serial.println();
-
-        m_serial.println(F("DESCRIPTION"));
-        m_serial.println(F("    Commands control servos and telemetry via UART."));
-        m_serial.println();
-
-        m_serial.println(F("COMMANDS"));
-        m_serial.println(F("    PING"));
-        m_serial.println(F("        Responds with 'PONG' to verify connectivity."));
-        m_serial.println();
-
-        m_serial.println(F("    S <channel> <microseconds>"));
-        m_serial.println(F("        Sets servo <channel> (0-5) to the specified pulse width."));
-        m_serial.println();
-
-        m_serial.println(F("    SWEEP ON [channel|start-end|ALL]"));
-        m_serial.println(F("        Enables sweep on a single channel, a range, or all servos."));
-        m_serial.println(F("    SWEEP OFF [channel|start-end|ALL]"));
-        m_serial.println(F("        Disables sweep on the selected channel(s)."));
-        m_serial.println();
-
-        m_serial.println(F("    MOTOR <target> FORWARD|BACKWARD [speed]"));
-        m_serial.println(F("        Drives selected motor(s) via DRV8833 in the chosen direction."));
-        m_serial.println(F("        <target> is 0-5 or ALL. Optional speed is 0.0-1.0 (default 1.0)."));
-        m_serial.println();
-
-        m_serial.println(F("    MOTOR <target> STOP"));
-        m_serial.println(F("        Coasts the selected motor(s); ALL also drops STBY low."));
-        m_serial.println();
-
-        m_serial.println(F("    MOTOR <target> START"));
-        m_serial.println(F("        Resumes motion for motor(s) that were previously stopped."));
-        m_serial.println();
-
-        m_serial.println(F("    LOG ON|OFF"));
-        m_serial.println(F("        Enables or disables periodic sweep telemetry output."));
-        m_serial.println();
-
-        m_serial.println(F("    HELP"));
-        m_serial.println(F("        Displays this command reference."));
-        m_serial.println();
-
-        m_serial.println(F("EXAMPLES"));
-        m_serial.println(F("    SWEEP ON 0-5"));
-        m_serial.println(F("    SWEEP OFF [ALL]"));
-        m_serial.println(F("    S 2 1500"));
-        m_serial.println();
-
-        m_serial.println(F("NOTES"));
-        m_serial.println(F("    • Channel indices beyond 0-5 are rejected."));
-        m_serial.println(F("    • Pulse widths are clamped to configured min/max per channel."));
-        m_serial.println(F("    • Motor targets must be 0-5 or ALL; speed range is 0.0-1.0."));
-        m_serial.println();
-
-        m_serial.println(F("OK"));
+        m_serial.print(kHelpText);
     }
 
     bool UARTCommandInput::parseMotorTargetToken(char *token, uint8_t &motorIndex, bool &isAllRequest)

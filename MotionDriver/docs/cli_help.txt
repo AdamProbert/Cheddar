@@ -1,0 +1,57 @@
+R"HELPDOC(
+NAME
+    cheddar-cli - MotionDriver serial command interface
+
+SYNOPSIS
+    PING
+    S <channel> <microseconds>
+    SWEEP ON|OFF [channel|start-end|ALL]
+    MOTOR <target> FORWARD|BACKWARD [speed]
+    MOTOR <target> STOP
+    MOTOR <target> START
+    LOG ON|OFF
+    HELP
+
+DESCRIPTION
+    Commands control servos and telemetry via UART.
+
+COMMANDS
+    PING
+        Responds with 'PONG' to verify connectivity.
+
+    S <channel> <microseconds>
+        Sets servo <channel> (0-5) to the specified pulse width.
+
+    SWEEP ON [channel|start-end|ALL]
+        Enables sweep on a single channel, a range, or all servos.
+    SWEEP OFF [channel|start-end|ALL]
+        Disables sweep on the selected channel(s).
+
+    MOTOR <target> FORWARD|BACKWARD [speed]
+        Drives selected motor(s) via DRV8833 in the chosen direction.
+        <target> is 0-5 or ALL. Optional speed is 0.0-1.0 (default 1.0).
+
+    MOTOR <target> STOP
+        Coasts the selected motor(s); ALL also drops STBY low.
+
+    MOTOR <target> START
+        Resumes motion for motor(s) that were previously stopped.
+
+    LOG ON|OFF
+        Enables or disables periodic sweep telemetry output.
+
+    HELP
+        Displays this command reference.
+
+EXAMPLES
+    SWEEP ON 0-5
+    SWEEP OFF [ALL]
+    S 2 1500
+
+NOTES
+    • Channel indices beyond 0-5 are rejected.
+    • Pulse widths are clamped to configured min/max per channel.
+    • Motor targets must be 0-5 or ALL; speed range is 0.0-1.0.
+
+OK
+)HELPDOC"
