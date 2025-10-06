@@ -19,8 +19,10 @@ namespace inputs
         void resetBuffer();
         void handleLine();
         void handleServoCommand(char *channelToken, char *pulseToken);
-        void handleSweepCommand(char *stateToken);
+        void handleSweepCommand(char *stateToken, char *rangeToken);
         void handleTelemetryCommand(char *stateToken);
+        void handleHelpCommand();
+        bool parseSweepRangeToken(char *token, uint8_t &startChannel, uint8_t &endChannel, bool &isAllRequest);
         void reportError(const char *message);
 
         static constexpr size_t kBufferSize = 64;

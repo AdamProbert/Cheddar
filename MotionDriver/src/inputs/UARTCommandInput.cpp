@@ -96,7 +96,14 @@ namespace inputs
                 reportError("SWEEP cmd syntax");
                 return;
             }
-            handleSweepCommand(stateToken);
+            char *rangeToken = strtok_r(nullptr, " \t", &savePtr);
+            char *extraToken = strtok_r(nullptr, " \t", &savePtr);
+            if (extraToken != nullptr)
+            {
+                reportError("SWEEP extra args");
+                return;
+            }
+            handleSweepCommand(stateToken, rangeToken);
             return;
         }
 
@@ -109,6 +116,12 @@ namespace inputs
                 return;
             }
             handleTelemetryCommand(stateToken);
+            return;
+        }
+
+        if (strcasecmp(token, "HELP") == 0 || strcmp(token, "?") == 0)
+        {
+            handleHelpCommand();
             return;
         }
 
@@ -137,23 +150,55 @@ namespace inputs
         m_serial.println("OK");
     }
 
-    void UARTCommandInput::handleSweepCommand(char *stateToken)
+    void UARTCommandInput::handleSweepCommand(char *stateToken, char *rangeToken)
     {
+        if (stateToken == nullptr)
+        {
+            reportError("SWEEP arg");
+            return;
+        }
+
+        bool enable = false;
         if (strcasecmp(stateToken, "ON") == 0)
         {
-            m_servoController.enableSweep(true);
-            m_serial.println("OK");
-            return;
+            enable = true;
         }
-
-        if (strcasecmp(stateToken, "OFF") == 0)
+        else if (strcasecmp(stateToken, "OFF") == 0)
         {
-            m_servoController.enableSweep(false);
+            enable = false;
+        }
+        else
+        {
+            reportError("SWEEP arg");
+            return;
+        }
+
+        if (rangeToken == nullptr)
+        {
+            m_servoController.enableSweep(enable);
             m_serial.println("OK");
             return;
         }
 
-        reportError("SWEEP arg");
+        uint8_t startChannel = 0;
+        uint8_t endChannel = 0;
+        bool isAll = false;
+        if (!parseSweepRangeToken(rangeToken, startChannel, endChannel, isAll))
+        {
+            reportError("SWEEP range");
+            return;
+        }
+
+        if (isAll)
+        {
+            m_servoController.setSweepEnabledAll(enable);
+        }
+        else
+        {
+            m_servoController.setSweepEnabledRange(startChannel, endChannel, enable);
+        }
+
+        m_serial.println("OK");
     }
 
     void UARTCommandInput::handleTelemetryCommand(char *stateToken)
@@ -173,6 +218,138 @@ namespace inputs
         }
 
         reportError("LOG arg");
+    }
+
+    void UARTCommandInput::handleHelpCommand()
+    {
+        m_serial.println(F("NAME"));
+        m_serial.println(F("    cheddar-cli - MotionDriver serial command interface"));
+        m_serial.println();
+
+        m_serial.println(F("SYNOPSIS"));
+        m_serial.println(F("    PING"));
+        m_serial.println(F("    S <channel> <microseconds>"));
+        m_serial.println(F("    SWEEP ON|OFF [channel|start-end|ALL]"));
+        m_serial.println(F("    LOG ON|OFF"));
+        m_serial.println(F("    HELP"));
+        m_serial.println();
+
+        m_serial.println(F("DESCRIPTION"));
+        m_serial.println(F("    Commands control servos and telemetry via UART."));
+        m_serial.println();
+
+        m_serial.println(F("COMMANDS"));
+        m_serial.println(F("    PING"));
+        m_serial.println(F("        Responds with 'PONG' to verify connectivity."));
+        m_serial.println();
+
+        m_serial.println(F("    S <channel> <microseconds>"));
+        m_serial.println(F("        Sets servo <channel> (0-5) to the specified pulse width."));
+        m_serial.println();
+
+        m_serial.println(F("    SWEEP ON [channel|start-end|ALL]"));
+        m_serial.println(F("        Enables sweep on a single channel, a range, or all servos."));
+        m_serial.println(F("    SWEEP OFF [channel|start-end|ALL]"));
+        m_serial.println(F("        Disables sweep on the selected channel(s)."));
+        m_serial.println();
+
+        m_serial.println(F("    LOG ON|OFF"));
+        m_serial.println(F("        Enables or disables periodic sweep telemetry output."));
+        m_serial.println();
+
+        m_serial.println(F("    HELP"));
+        m_serial.println(F("        Displays this command reference."));
+        m_serial.println();
+
+        m_serial.println(F("EXAMPLES"));
+        m_serial.println(F("    SWEEP ON 0-5"));
+        m_serial.println(F("    SWEEP OFF [ALL]"));
+        m_serial.println(F("    S 2 1500"));
+        m_serial.println();
+
+        m_serial.println(F("NOTES"));
+        m_serial.println(F("    • Channel indices beyond 0-5 are rejected."));
+        m_serial.println(F("    • Pulse widths are clamped to configured min/max per channel."));
+        m_serial.println();
+
+        m_serial.println(F("OK"));
+    }
+
+    bool UARTCommandInput::parseSweepRangeToken(char *token, uint8_t &startChannel, uint8_t &endChannel, bool &isAllRequest)
+    {
+        if (token == nullptr)
+        {
+            return false;
+        }
+
+        isAllRequest = false;
+
+        if (strcasecmp(token, "ALL") == 0 || strcasecmp(token, "[ALL]") == 0)
+        {
+            startChannel = 0;
+            endChannel = outputs::ServoController::kServoCount - 1;
+            isAllRequest = true;
+            return true;
+        }
+
+        char *dash = strchr(token, '-');
+        if (dash != nullptr)
+        {
+            *dash = '\0';
+            char *startToken = token;
+            char *endToken = dash + 1;
+
+            char *endPtr = nullptr;
+            long startValue = strtol(startToken, &endPtr, 10);
+            if (endPtr == nullptr || *endPtr != '\0')
+            {
+                return false;
+            }
+
+            endPtr = nullptr;
+            long endValue = strtol(endToken, &endPtr, 10);
+            if (endPtr == nullptr || *endPtr != '\0')
+            {
+                return false;
+            }
+
+            if (startValue < 0 || endValue < 0)
+            {
+                return false;
+            }
+
+            if (startValue > endValue)
+            {
+                long temp = startValue;
+                startValue = endValue;
+                endValue = temp;
+            }
+
+            if (endValue >= outputs::ServoController::kServoCount)
+            {
+                return false;
+            }
+
+            startChannel = static_cast<uint8_t>(startValue);
+            endChannel = static_cast<uint8_t>(endValue);
+            return true;
+        }
+
+        char *endPtr = nullptr;
+        long channelValue = strtol(token, &endPtr, 10);
+        if (endPtr == nullptr || *endPtr != '\0')
+        {
+            return false;
+        }
+
+        if (channelValue < 0 || channelValue >= outputs::ServoController::kServoCount)
+        {
+            return false;
+        }
+
+        startChannel = static_cast<uint8_t>(channelValue);
+        endChannel = static_cast<uint8_t>(channelValue);
+        return true;
     }
 
     void UARTCommandInput::reportError(const char *message)

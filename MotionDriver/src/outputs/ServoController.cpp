@@ -18,11 +18,23 @@ namespace outputs
         : m_driver(kPCA9685Address),
           m_initialized(false),
           m_outputsEnabled(false),
-          m_lastUpdateMs(0),
-          m_currentPulseUs(m_sweepConfig.minPulseUs + (m_sweepConfig.maxPulseUs - m_sweepConfig.minPulseUs) / 2),
-          m_stepDirection(1),
-          m_logDecimator(0)
+          m_logTelemetry(true),
+          m_defaultSweepChannel(0)
     {
+        for (uint8_t channel = 0; channel < kServoCount; ++channel)
+        {
+            auto &state = m_sweepStates[channel];
+            state.enabled = false;
+            state.channel = channel;
+            state.minPulseUs = kDefaultMinPulseUs;
+            state.maxPulseUs = kDefaultMaxPulseUs;
+            state.stepUs = 10;
+            state.intervalMs = 50;
+            state.lastUpdateMs = 0;
+            state.currentPulseUs = (kDefaultMinPulseUs + kDefaultMaxPulseUs) / 2;
+            state.direction = 1;
+            state.logDecimator = 0;
+        }
     }
 
     bool ServoController::begin(TwoWire &wire)
@@ -48,10 +60,20 @@ namespace outputs
         delay(10);
 
         m_initialized = true;
-        m_lastUpdateMs = millis();
-        m_sweepConfig.enabled = false;
-        m_currentPulseUs = clampPulse(m_currentPulseUs, m_sweepConfig.minPulseUs, m_sweepConfig.maxPulseUs);
-        writeMicroseconds(m_sweepConfig.channel, static_cast<uint16_t>(m_currentPulseUs));
+        m_defaultSweepChannel = 0;
+
+        const uint32_t nowMs = millis();
+
+        for (uint8_t channel = 0; channel < kServoCount; ++channel)
+        {
+            auto &state = m_sweepStates[channel];
+            state.enabled = false;
+            state.channel = channel;
+            state.lastUpdateMs = nowMs;
+            const uint16_t clamped = clampPulse(channel, state.currentPulseUs);
+            writeMicroseconds(channel, clamped);
+        }
+
         setOutputsEnabled(true);
 
         return true;
@@ -59,85 +81,163 @@ namespace outputs
 
     void ServoController::update(uint32_t nowMs)
     {
-        if (!m_initialized || !m_sweepConfig.enabled)
+        if (!m_initialized)
         {
             return;
         }
 
-        if (nowMs - m_lastUpdateMs < m_sweepConfig.intervalMs)
+        for (uint8_t channel = 0; channel < kServoCount; ++channel)
         {
-            return;
-        }
-
-        m_lastUpdateMs = nowMs;
-        m_currentPulseUs += m_stepDirection * static_cast<int32_t>(m_sweepConfig.stepUs);
-
-        if (m_currentPulseUs >= m_sweepConfig.maxPulseUs || m_currentPulseUs <= m_sweepConfig.minPulseUs)
-        {
-            m_currentPulseUs = clampPulse(static_cast<uint16_t>(m_currentPulseUs), m_sweepConfig.minPulseUs, m_sweepConfig.maxPulseUs);
-            m_stepDirection = -m_stepDirection;
-        }
-
-        writeMicroseconds(m_sweepConfig.channel, static_cast<uint16_t>(m_currentPulseUs));
-
-        if (m_sweepConfig.logTelemetry)
-        {
-            if (++m_logDecimator >= 5)
+            auto &state = m_sweepStates[channel];
+            if (!state.enabled)
             {
-                m_logDecimator = 0;
-                Serial.printf("Servo pulse: %ld us\n", m_currentPulseUs);
+                continue;
+            }
+
+            if ((nowMs - state.lastUpdateMs) < state.intervalMs)
+            {
+                continue;
+            }
+
+            state.lastUpdateMs = nowMs;
+            state.currentPulseUs += state.direction * static_cast<int32_t>(state.stepUs);
+
+            if (state.currentPulseUs >= state.maxPulseUs || state.currentPulseUs <= state.minPulseUs)
+            {
+                state.currentPulseUs = clampPulse(channel, state.currentPulseUs);
+                state.direction = static_cast<int8_t>(-state.direction);
+            }
+
+            const uint16_t clamped = clampPulse(channel, state.currentPulseUs);
+            writeMicroseconds(channel, clamped);
+
+            if (m_logTelemetry)
+            {
+                if (++state.logDecimator >= 5)
+                {
+                    state.logDecimator = 0;
+                    Serial.printf("Servo %u pulse: %ld us\n", channel, static_cast<long>(state.currentPulseUs));
+                }
             }
         }
     }
 
     void ServoController::setTargetMicroseconds(uint8_t channel, uint16_t pulseUs)
     {
-        if (!m_initialized)
+        if (!m_initialized || channel >= kServoCount)
         {
             return;
         }
 
-        m_sweepConfig.channel = channel;
-        m_sweepConfig.enabled = false;
+        auto &state = m_sweepStates[channel];
+        state.enabled = false;
+        state.direction = 1;
+        state.lastUpdateMs = 0;
 
-        const uint16_t clamped = clampPulse(pulseUs, m_sweepConfig.minPulseUs, m_sweepConfig.maxPulseUs);
-        m_currentPulseUs = clamped;
+        const uint16_t clamped = clampPulse(channel, static_cast<int32_t>(pulseUs));
         writeMicroseconds(channel, clamped);
     }
 
     void ServoController::enableSweep(bool enabled)
     {
-        m_sweepConfig.enabled = enabled;
+        setSweepEnabled(m_defaultSweepChannel, enabled);
+    }
+
+    void ServoController::setSweepEnabled(uint8_t channel, bool enabled)
+    {
+        if (channel >= kServoCount)
+        {
+            return;
+        }
+
+        auto &state = m_sweepStates[channel];
+        state.enabled = enabled;
         if (enabled)
         {
-            m_lastUpdateMs = 0;
+            state.lastUpdateMs = 0;
+            state.direction = (state.direction >= 0) ? 1 : -1;
+            const uint16_t clamped = clampPulse(channel, state.currentPulseUs);
+            writeMicroseconds(channel, clamped);
         }
+    }
+
+    void ServoController::setSweepEnabledRange(uint8_t startChannel, uint8_t endChannel, bool enabled)
+    {
+        if (startChannel > endChannel)
+        {
+            const uint8_t temp = startChannel;
+            startChannel = endChannel;
+            endChannel = temp;
+        }
+
+        if (startChannel >= kServoCount)
+        {
+            return;
+        }
+
+        if (endChannel >= kServoCount)
+        {
+            endChannel = kServoCount - 1;
+        }
+
+        for (uint8_t channel = startChannel; channel <= endChannel; ++channel)
+        {
+            setSweepEnabled(channel, enabled);
+        }
+    }
+
+    void ServoController::setSweepEnabledAll(bool enabled)
+    {
+        setSweepEnabledRange(0, kServoCount - 1, enabled);
     }
 
     void ServoController::configureSweepChannel(uint8_t channel)
     {
-        m_sweepConfig.channel = channel;
+        if (channel >= kServoCount)
+        {
+            return;
+        }
+
+        m_defaultSweepChannel = channel;
     }
 
     void ServoController::configureSweepRange(uint16_t minPulseUs, uint16_t maxPulseUs)
     {
-        m_sweepConfig.minPulseUs = minPulseUs;
-        m_sweepConfig.maxPulseUs = maxPulseUs;
-        if (m_currentPulseUs < minPulseUs || m_currentPulseUs > maxPulseUs)
+        if (m_defaultSweepChannel >= kServoCount)
         {
-            m_currentPulseUs = clampPulse(static_cast<uint16_t>(m_currentPulseUs), minPulseUs, maxPulseUs);
+            return;
         }
+
+        if (minPulseUs > maxPulseUs)
+        {
+            const uint16_t temp = minPulseUs;
+            minPulseUs = maxPulseUs;
+            maxPulseUs = temp;
+        }
+
+        auto &state = m_sweepStates[m_defaultSweepChannel];
+        state.minPulseUs = minPulseUs;
+        state.maxPulseUs = maxPulseUs;
+
+        const uint16_t clamped = clampPulse(m_defaultSweepChannel, state.currentPulseUs);
+        writeMicroseconds(m_defaultSweepChannel, clamped);
     }
 
     void ServoController::configureSweepStep(uint16_t stepUs, uint32_t intervalMs)
     {
-        m_sweepConfig.stepUs = stepUs;
-        m_sweepConfig.intervalMs = intervalMs;
+        if (m_defaultSweepChannel >= kServoCount)
+        {
+            return;
+        }
+
+        auto &state = m_sweepStates[m_defaultSweepChannel];
+        state.stepUs = stepUs;
+        state.intervalMs = intervalMs;
     }
 
     void ServoController::enableTelemetry(bool enabled)
     {
-        m_sweepConfig.logTelemetry = enabled;
+        m_logTelemetry = enabled;
     }
 
     void ServoController::setOutputsEnabled(bool enabled)
@@ -160,21 +260,31 @@ namespace outputs
 
     void ServoController::writeMicroseconds(uint8_t channel, uint16_t pulseUs)
     {
-        const uint16_t ticks = pulseToTicks(clampPulse(pulseUs, m_sweepConfig.minPulseUs, m_sweepConfig.maxPulseUs));
+        if (channel >= kServoCount)
+        {
+            return;
+        }
+
+        const uint16_t clamped = clampPulse(channel, static_cast<int32_t>(pulseUs));
+        const uint16_t ticks = pulseToTicks(clamped);
         m_driver.setPWM(channel, 0, ticks);
+        m_sweepStates[channel].currentPulseUs = clamped;
     }
 
-    uint16_t ServoController::clampPulse(uint16_t pulseUs, uint16_t minUs, uint16_t maxUs)
+    uint16_t ServoController::clampPulse(uint8_t channel, int32_t pulseUs) const
     {
-        if (pulseUs < minUs)
+        const uint16_t minUs = (channel < kServoCount) ? m_sweepStates[channel].minPulseUs : kDefaultMinPulseUs;
+        const uint16_t maxUs = (channel < kServoCount) ? m_sweepStates[channel].maxPulseUs : kDefaultMaxPulseUs;
+
+        if (pulseUs < static_cast<int32_t>(minUs))
         {
             return minUs;
         }
-        if (pulseUs > maxUs)
+        if (pulseUs > static_cast<int32_t>(maxUs))
         {
             return maxUs;
         }
-        return pulseUs;
+        return static_cast<uint16_t>(pulseUs);
     }
 
     uint16_t ServoController::pulseToTicks(uint16_t pulseUs)
