@@ -1,0 +1,6 @@
+fastapi>=0.110,<0.111
+uvicorn[standard]>=0.29,<0.30
+pyserial>=3.5,<4.0
+pydantic>=2.7,<2.8
+pytest>=7.4,<8.3
+httpx>=0.26,<0.27
