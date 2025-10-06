@@ -2,6 +2,7 @@
 #include <Wire.h>
 
 #include "inputs/UARTCommandInput.h"
+#include "outputs/MotorController.h"
 #include "outputs/ServoController.h"
 
 namespace
@@ -10,7 +11,8 @@ namespace
 }
 
 outputs::ServoController g_servoController;
-inputs::UARTCommandInput g_uartInput(Serial, g_servoController);
+outputs::MotorController g_motorController;
+inputs::UARTCommandInput g_uartInput(Serial, g_servoController, g_motorController);
 
 void setup()
 {
@@ -27,7 +29,17 @@ void setup()
         }
     }
 
+    if (!g_motorController.begin())
+    {
+        Serial.println("Motor controller init failed. Halting.");
+        while (true)
+        {
+            delay(1000);
+        }
+    }
+
     Serial.println("Servo controller ready. Sweep disabled (use 'SWEEP ON').");
+    Serial.println("Motor controller ready. Use 'MOTOR' commands to drive the motor.");
 }
 
 void loop()

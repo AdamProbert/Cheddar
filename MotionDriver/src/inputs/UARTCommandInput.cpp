@@ -7,9 +7,10 @@
 namespace inputs
 {
 
-    UARTCommandInput::UARTCommandInput(HardwareSerial &serial, outputs::ServoController &servoController)
+    UARTCommandInput::UARTCommandInput(HardwareSerial &serial, outputs::ServoController &servoController, outputs::MotorController &motorController)
         : m_serial(serial),
           m_servoController(servoController),
+          m_motorController(motorController),
           m_buffer{0},
           m_bufferLength(0)
     {
@@ -119,6 +120,20 @@ namespace inputs
             return;
         }
 
+        if (strcasecmp(token, "MOTOR") == 0)
+        {
+            char *modeToken = strtok_r(nullptr, " \t", &savePtr);
+            char *valueToken = strtok_r(nullptr, " \t", &savePtr);
+            char *extraToken = strtok_r(nullptr, " \t", &savePtr);
+            if (modeToken == nullptr)
+            {
+                reportError("MOTOR cmd syntax");
+                return;
+            }
+            handleMotorCommand(modeToken, valueToken, extraToken);
+            return;
+        }
+
         if (strcasecmp(token, "HELP") == 0 || strcmp(token, "?") == 0)
         {
             handleHelpCommand();
@@ -220,6 +235,81 @@ namespace inputs
         reportError("LOG arg");
     }
 
+    void UARTCommandInput::handleMotorCommand(char *modeToken, char *valueToken, char *extraToken)
+    {
+        if (modeToken == nullptr)
+        {
+            reportError("MOTOR arg");
+            return;
+        }
+
+        if (strcasecmp(modeToken, "STOP") == 0)
+        {
+            if (valueToken != nullptr || extraToken != nullptr)
+            {
+                reportError("MOTOR STOP args");
+                return;
+            }
+            m_motorController.stop();
+            m_serial.println("OK");
+            return;
+        }
+
+        if (strcasecmp(modeToken, "START") == 0)
+        {
+            if (valueToken != nullptr || extraToken != nullptr)
+            {
+                reportError("MOTOR START args");
+                return;
+            }
+            m_motorController.start();
+            m_serial.println("OK");
+            return;
+        }
+
+        outputs::MotorController::Direction direction;
+        if (strcasecmp(modeToken, "FORWARD") == 0)
+        {
+            direction = outputs::MotorController::Direction::Forward;
+        }
+        else if (strcasecmp(modeToken, "BACKWARD") == 0)
+        {
+            direction = outputs::MotorController::Direction::Backward;
+        }
+        else
+        {
+            reportError("MOTOR arg");
+            return;
+        }
+
+        if (extraToken != nullptr)
+        {
+            reportError("MOTOR extra args");
+            return;
+        }
+
+        float speed = 1.0f;
+        if (valueToken != nullptr)
+        {
+            char *endPtr = nullptr;
+            const float parsed = strtof(valueToken, &endPtr);
+            if (endPtr == nullptr || *endPtr != '\0')
+            {
+                reportError("MOTOR speed");
+                return;
+            }
+            if (parsed < 0.0f || parsed > 1.0f)
+            {
+                reportError("MOTOR speed");
+                return;
+            }
+            speed = parsed;
+        }
+
+        m_motorController.run(direction, speed, true);
+        m_serial.println("OK");
+    }
+
     void UARTCommandInput::handleHelpCommand()
     {
         m_serial.println(F("NAME"));
@@ -230,6 +320,9 @@ namespace inputs
         m_serial.println(F("    PING"));
         m_serial.println(F("    S <channel> <microseconds>"));
         m_serial.println(F("    SWEEP ON|OFF [channel|start-end|ALL]"));
+        m_serial.println(F("    MOTOR FORWARD|BACKWARD [speed]"));
+        m_serial.println(F("    MOTOR STOP"));
+        m_serial.println(F("    MOTOR START"));
         m_serial.println(F("    LOG ON|OFF"));
         m_serial.println(F("    HELP"));
         m_serial.println();
@@ -251,6 +344,19 @@ namespace inputs
         m_serial.println(F("        Enables sweep on a single channel, a range, or all servos."));
         m_serial.println(F("    SWEEP OFF [channel|start-end|ALL]"));
         m_serial.println(F("        Disables sweep on the selected channel(s)."));
+        m_serial.println();
+
+        m_serial.println(F("    MOTOR FORWARD|BACKWARD [speed]"));
+        m_serial.println(F("        Drives the DC motor via DRV8833 in the selected direction."));
+        m_serial.println(F("        Optional speed is 0.0-1.0 (default 1.0)."));
+        m_serial.println();
+
+        m_serial.println(F("    MOTOR STOP"));
+        m_serial.println(F("        Disables the driver (STBY low) and coasts the motor."));
+        m_serial.println();
+
+        m_serial.println(F("    MOTOR START"));
+        m_serial.println(F("        Re-enables the driver and resumes the last direction/speed."));
         m_serial.println();
 
         m_serial.println(F("    LOG ON|OFF"));
