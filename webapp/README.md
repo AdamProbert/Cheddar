@@ -33,7 +33,7 @@ Additional toggles:
 ## Run the web server
 
 ```bash
-uvicorn webapp.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Open `http://localhost:8000` in a browser to access the dashboard. All API routes are namespaced under `/api/*` and respond with JSON.
