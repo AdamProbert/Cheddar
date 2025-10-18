@@ -4,8 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from .. import main as main_module
-from ..config import SerialConfig
-from ..serial_bridge import DummyTransport, SerialBridge
+from cheddar_serial import SerialConfig, DummyTransport, SerialBridge
 
 
 @pytest.fixture(name="transport")

@@ -9,8 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from config import SerialConfig
-from serial_bridge import CommandError, SerialBridge, create_bridge
+from cheddar_serial import SerialConfig, CommandError, create_bridge
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 _LOGGER = logging.getLogger("motiondriver.webapp")

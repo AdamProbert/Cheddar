@@ -1,7 +1,6 @@
 import pytest
 
-from ..config import SerialConfig
-from ..serial_bridge import CommandError, DummyTransport, SerialBridge
+from cheddar_serial import SerialConfig, CommandError, DummyTransport, SerialBridge
 
 
 def make_bridge(response: str = "OK") -> tuple[SerialBridge, DummyTransport]:
