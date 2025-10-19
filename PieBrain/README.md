@@ -33,6 +33,38 @@ sudo bash ./setup_rpi.sh --git-name "Adam Probert" --git-email "adamprobert@live
 
 - The script automatically sets your default shell to zsh; log out/in for it to take effect.
 - Add the printed SSH public key to GitHub under Settings → SSH and GPG keys.
+- If a USB Bluetooth dongle is detected during setup, the script appends `dtoverlay=disable-bt` to the active boot config (`/boot/firmware/config.txt` or `/boot/config.txt`) so that on next reboot the onboard UART Bluetooth is disabled and the dongle becomes the primary adapter.
+
+### Bluetooth Dongle Auto-Setup
+
+When you run `setup_rpi.sh`, it scans `lsusb` for a USB Bluetooth adapter (matches common vendor strings like TP-Link, Realtek, Intel). If found:
+
+1. It appends `dtoverlay=disable-bt` to your boot config (unless already present).
+2. On the next reboot the onboard Broadcom Bluetooth (UART hci0) is disabled.
+3. The USB adapter will then appear as `hci0` (or the only controller) to BlueZ, reducing interference with Wi‑Fi on Pi 3 models.
+
+To verify after reboot:
+
+```bash
+bluetoothctl list
+hciconfig -a
+```
+
+Reverting (re-enable onboard Bluetooth):
+
+```bash
+sudo sed -i '/^dtoverlay=disable-bt$/d' /boot/firmware/config.txt 2>/dev/null || \
+sudo sed -i '/^dtoverlay=disable-bt$/d' /boot/config.txt
+sudo reboot
+```
+
+If you plug in a dongle after running the script (and want to disable onboard BT later), simply add the overlay manually:
+
+```bash
+echo 'dtoverlay=disable-bt' | sudo tee -a /boot/firmware/config.txt 2>/dev/null || \
+echo 'dtoverlay=disable-bt' | sudo tee -a /boot/config.txt
+sudo reboot
+```
 
 ## Xbox Controller Teleoperation
 

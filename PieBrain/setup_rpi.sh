@@ -152,6 +152,29 @@ fi
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
+# Optional: Auto-detect USB Bluetooth dongle and disable onboard UART Bluetooth
+log "Checking for USB Bluetooth dongle to optionally disable onboard BT"
+BT_USB_PRESENT=0
+if lsusb 2>/dev/null | grep -qiE 'Bluetooth|Realtek|TP-Link|Intel'; then
+  # Further verify via btusb module once installed later on boot
+  BT_USB_PRESENT=1
+fi
+
+BOOT_CONFIG="/boot/firmware/config.txt"
+[[ -f /boot/config.txt && ! -f "$BOOT_CONFIG" ]] && BOOT_CONFIG="/boot/config.txt"
+
+if [[ $BT_USB_PRESENT -eq 1 ]]; then
+  if grep -q '^dtoverlay=disable-bt$' "$BOOT_CONFIG"; then
+    log "Onboard Bluetooth already disabled via dtoverlay=disable-bt"
+  else
+    log "USB Bluetooth adapter detected; adding dtoverlay=disable-bt to $BOOT_CONFIG (will require reboot)"
+    echo "dtoverlay=disable-bt" >> "$BOOT_CONFIG" || err "Failed to append overlay line to $BOOT_CONFIG"
+    log "On next reboot, onboard UART Bluetooth will be disabled and USB adapter should become primary (hci0)."
+  fi
+else
+  log "No USB Bluetooth adapter detected at setup time; leaving onboard BT enabled."
+fi
+
 log "Setup complete. Log out/in for new shell to apply."
 
 cat <<EOF
