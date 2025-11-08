@@ -30,10 +30,10 @@ export const ControlCommandSchema = z.object({
 
 export const TelemetryDataSchema = z.object({
   type: z.enum(['telemetry', 'pong']),
-  battery_voltage: z.number().optional(),
-  current_draw: z.number().optional(),
-  cpu_temp: z.number().optional(),
-  signal_strength: z.number().int().min(0).max(100).optional(),
+  battery_voltage: z.number().nullable().optional(),
+  current_draw: z.number().nullable().optional(),
+  cpu_temp: z.number().nullable().optional(),
+  signal_strength: z.number().int().min(0).max(100).nullable().optional(),
   timestamp: z.number(),
   latency_ms: z.number().optional(),
 })
@@ -42,8 +42,8 @@ export const SystemMetricsSchema = z.object({
   type: z.literal('metrics'),
   cpu_percent: z.number(),
   memory_percent: z.number(),
-  cpu_temp: z.number().optional(),
-  disk_percent: z.number().optional(),
+  cpu_temp: z.number().nullable().optional(),
+  disk_percent: z.number().nullable().optional(),
   timestamp: z.number(),
 })
 
