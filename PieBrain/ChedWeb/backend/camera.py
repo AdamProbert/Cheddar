@@ -38,8 +38,8 @@ class PiCameraVideoTrack(VideoStreamTrack):
         flip_180: bool = False,
         use_mock: bool = False,
         is_noir: bool = True,
-        awb_mode: str = "greyworld",
-        color_gains: tuple[float, float] = (1.5, 1.5),
+        awb_mode: str = "manual",
+        color_gains: tuple[float, float] = (2.0, 1.2),
     ) -> None:
         """
         Initialize the Pi camera video track.
@@ -310,8 +310,8 @@ class CameraManager:
         flip_180: bool = False,
         enabled: bool = True,
         is_noir: bool = True,
-        awb_mode: str = "greyworld",
-        color_gains: tuple[float, float] = (1.5, 1.5),
+        awb_mode: str = "manual",
+        color_gains: tuple[float, float] = (2.0, 1.2),
     ) -> None:
         """
         Initialize camera manager.
@@ -323,8 +323,8 @@ class CameraManager:
             flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             enabled: Whether camera is enabled
             is_noir: Whether using NoIR camera (requires color correction)
-            awb_mode: Auto white balance mode (greyworld recommended for NoIR)
-            color_gains: Manual color gains (red, blue)
+            awb_mode: Auto white balance mode (use 'manual' for color gains)
+            color_gains: Manual color gains (red, blue) - only active when awb_mode='manual'
         """
         self.width = width
         self.height = height

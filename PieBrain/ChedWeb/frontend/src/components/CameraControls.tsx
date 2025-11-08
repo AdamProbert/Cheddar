@@ -17,12 +17,13 @@ interface CameraSettings {
 }
 
 const AWB_MODES = [
+  { value: 'manual', label: 'Manual (Use Color Gains)' },
   { value: 'auto', label: 'Auto' },
-  { value: 'greyworld', label: 'Grey World (NoIR)' },
-  { value: 'daylight', label: 'Daylight' },
+  { value: 'incandescent', label: 'Incandescent' },
   { value: 'tungsten', label: 'Tungsten' },
   { value: 'fluorescent', label: 'Fluorescent' },
   { value: 'indoor', label: 'Indoor' },
+  { value: 'daylight', label: 'Daylight' },
   { value: 'cloudy', label: 'Cloudy' },
 ]
 
@@ -43,7 +44,7 @@ export function CameraControls() {
   const [needsRestart, setNeedsRestart] = useState(false)
 
   // Temporary state for form inputs
-  const [awbMode, setAwbMode] = useState<string>('greyworld')
+  const [awbMode, setAwbMode] = useState<string>('manual')
   const [redGain, setRedGain] = useState<number>(1.5)
   const [blueGain, setBlueGain] = useState<number>(1.5)
   const [framerate, setFramerate] = useState<number>(30)
@@ -145,7 +146,7 @@ export function CameraControls() {
             ))}
           </select>
           <p className="text-xs text-muted-foreground mt-1">
-            Try "Grey World" for NoIR cameras with pink tint
+            Set to "Manual" to use color gains below
           </p>
         </div>
 
@@ -162,7 +163,8 @@ export function CameraControls() {
               step="0.1"
               value={redGain}
               onChange={(e) => setRedGain(parseFloat(e.target.value))}
-              className="w-full bg-card border border-satisfactory-orange/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-satisfactory-orange transition-colors"
+              disabled={awbMode !== 'manual'}
+              className="w-full bg-card border border-satisfactory-orange/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-satisfactory-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
           <div>
@@ -176,10 +178,16 @@ export function CameraControls() {
               step="0.1"
               value={blueGain}
               onChange={(e) => setBlueGain(parseFloat(e.target.value))}
-              className="w-full bg-card border border-satisfactory-orange/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-satisfactory-orange transition-colors"
+              disabled={awbMode !== 'manual'}
+              className="w-full bg-card border border-satisfactory-orange/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-satisfactory-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          {awbMode === 'manual' 
+            ? 'Color gains active. Increase red to reduce purple/pink tint.'
+            : 'Color gains disabled when AWB mode is active'}
+        </p>
 
         {/* Resolution */}
         <div>
