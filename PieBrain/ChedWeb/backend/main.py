@@ -22,7 +22,7 @@ logger.add(
     level=settings.log_level,
 )
 
-# Global peer manager instance
+# Global manager instances
 peer_manager: PeerManager | None = None
 camera_manager: CameraManager | None = None
 
@@ -107,6 +107,11 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
     try:
         logger.info("Received SDP offer from client")
 
+        # Close any existing peer connection before creating a new one
+        if peer_manager.pc:
+            logger.info("Closing existing peer connection")
+            await peer_manager.close()
+
         # Create a new video track for this connection
         video_track = camera_manager.create_video_track()
         if video_track:
@@ -114,9 +119,10 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
         else:
             logger.warning("No video track created - camera may be disabled")
 
-        # Update peer manager with the video track
+        # Update peer manager with the video track before handling offer
         peer_manager.video_track = video_track
 
+        # Process the offer and create answer (this will create peer connection with video track)
         answer_sdp = await peer_manager.handle_offer(offer.sdp)
         logger.info("Returning SDP answer to client")
         return SDPAnswer(sdp=answer_sdp, type="answer")
