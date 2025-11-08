@@ -1,6 +1,7 @@
 """FastAPI application for rover control backend."""
 
 import sys
+import traceback
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -145,6 +146,7 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
         return SDPAnswer(sdp=answer_sdp, type="answer")
     except Exception as e:
         logger.error(f"Error handling signaling offer: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -172,8 +172,8 @@ CHEDWEB_BACKEND="${CLONE_DIR}/PieBrain/ChedWeb/backend"
 if [[ -d "$CHEDWEB_BACKEND" ]]; then
   log "Setting up ChedWeb backend environment"
   
-  # Create virtualenv for ChedWeb backend
-  sudo -u "$INVOKING_USER" python3 -m venv "${CHEDWEB_BACKEND}/.venv"
+  # Create virtualenv for ChedWeb backend with system site packages (needed for picamera2)
+  sudo -u "$INVOKING_USER" python3 -m venv "${CHEDWEB_BACKEND}/.venv" --system-site-packages
   
   # Install backend dependencies
   if [[ -f "${CHEDWEB_BACKEND}/requirements.txt" ]]; then

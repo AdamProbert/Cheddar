@@ -14,10 +14,10 @@ fi
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
 echo "✓ Found Python $PYTHON_VERSION"
 
-# Create virtual environment
+# Create virtual environment with system site packages (needed for picamera2)
 if [ ! -d "venv" ]; then
-    echo "📦 Creating virtual environment..."
-    python3 -m venv venv
+    echo "📦 Creating virtual environment (with system site packages for picamera2)..."
+    python3 -m venv venv --system-site-packages
 fi
 
 # Activate virtual environment
