@@ -234,7 +234,7 @@ export class InputManager {
       if (Math.abs(this.state.motors[i] - this.previousState.motors[i]) > 0.01) return true
     }
     
-    // Check servos (integer comparison)
+    // Check servos (integer comparison - any change is significant)
     for (let i = 0; i < 6; i++) {
       if (this.state.servos[i] !== this.previousState.servos[i]) return true
     }
@@ -483,8 +483,12 @@ export class InputManager {
     // Only emit state if it has changed (reduces network spam)
     if (this.hasStateChanged()) {
       this.emitState()
-      // Save current state for next comparison
-      this.previousState = { ...this.state }
+      // Save current state for next comparison (deep copy arrays!)
+      this.previousState = {
+        ...this.state,
+        motors: [...this.state.motors],
+        servos: [...this.state.servos],
+      }
     }
     
     // Continue polling
