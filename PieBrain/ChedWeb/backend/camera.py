@@ -38,6 +38,8 @@ class PiCameraVideoTrack(VideoStreamTrack):
         flip_180: bool = False,
         use_mock: bool = False,
         is_noir: bool = True,
+        awb_mode: str = "greyworld",
+        color_gains: tuple[float, float] = (1.5, 1.5),
     ) -> None:
         """
         Initialize the Pi camera video track.
@@ -49,6 +51,8 @@ class PiCameraVideoTrack(VideoStreamTrack):
             flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             use_mock: If True, use mock video source instead of real camera
             is_noir: If True, apply color correction for NoIR (No IR filter) camera
+            awb_mode: Auto white balance mode (auto, greyworld, daylight, etc.)
+            color_gains: Manual color gains (red, blue) - only used if awb_mode is None
         """
         super().__init__()
         self.width = width
@@ -57,6 +61,8 @@ class PiCameraVideoTrack(VideoStreamTrack):
         self.flip_180 = flip_180
         self.use_mock = use_mock or not PICAMERA2_AVAILABLE
         self.is_noir = is_noir
+        self.awb_mode = awb_mode
+        self.color_gains = color_gains
 
         self.camera: Optional[Picamera2] = None
         self._frame_count = 0
@@ -80,22 +86,34 @@ class PiCameraVideoTrack(VideoStreamTrack):
 
             self.camera = Picamera2()
 
+            # Map AWB mode string to libcamera enum
+            awb_mode_map = {
+                "auto": libcamera.controls.AwbModeEnum.Auto,
+                "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
+                "daylight": libcamera.controls.AwbModeEnum.Daylight,
+                "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
+                "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
+                "indoor": libcamera.controls.AwbModeEnum.Indoor,
+                "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
+            }
+
+            # Build controls dictionary
+            controls = {"FrameRate": self.framerate}
+
+            if self.awb_mode and self.awb_mode.lower() in awb_mode_map:
+                controls["AwbEnable"] = True
+                controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
+                logger.info(f"Using AWB mode: {self.awb_mode}")
+            else:
+                # Manual color gains
+                controls["AwbEnable"] = False
+                controls["ColourGains"] = self.color_gains
+                logger.info(f"Using manual color gains: {self.color_gains}")
+
             # Configure camera for video streaming
             video_config = self.camera.create_video_configuration(
                 main={"size": (self.width, self.height), "format": "RGB888"},
-                controls={
-                    "FrameRate": self.framerate,
-                    # NoIR camera adjustments - reduce blue gain to compensate for IR sensitivity
-                    "AwbEnable": True,
-                    "AwbMode": (
-                        libcamera.controls.AwbModeEnum.Daylight
-                        if self.is_noir
-                        else libcamera.controls.AwbModeEnum.Auto
-                    ),
-                    "ColourGains": (
-                        (1.8, 1.2) if self.is_noir else None
-                    ),  # Increase red, reduce blue
-                },
+                controls=controls,
             )
 
             # Flip camera 180 degrees if needed (for upside-down mounting)
@@ -191,6 +209,65 @@ class PiCameraVideoTrack(VideoStreamTrack):
 
         return frame
 
+    def update_settings(
+        self,
+        awb_mode: Optional[str] = None,
+        color_gains: Optional[tuple[float, float]] = None,
+        framerate: Optional[int] = None,
+    ) -> None:
+        """
+        Update camera settings on the fly.
+
+        Args:
+            awb_mode: Auto white balance mode (auto, greyworld, daylight, etc.)
+            color_gains: Manual color gains (red, blue)
+            framerate: Target framerate (FPS)
+        """
+        if not self.camera or self.use_mock:
+            logger.warning("Cannot update settings - camera not initialized or using mock")
+            return
+
+        try:
+            # Update internal state
+            if awb_mode is not None:
+                self.awb_mode = awb_mode
+            if color_gains is not None:
+                self.color_gains = color_gains
+            if framerate is not None:
+                self.framerate = framerate
+
+            # Apply settings to camera
+            controls = {}
+
+            if self.awb_mode:
+                awb_mode_map = {
+                    "auto": libcamera.controls.AwbModeEnum.Auto,
+                    "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
+                    "daylight": libcamera.controls.AwbModeEnum.Daylight,
+                    "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
+                    "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
+                    "indoor": libcamera.controls.AwbModeEnum.Indoor,
+                    "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
+                }
+                if self.awb_mode.lower() in awb_mode_map:
+                    controls["AwbEnable"] = True
+                    controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
+                    logger.info(f"Updated AWB mode to: {self.awb_mode}")
+            else:
+                controls["AwbEnable"] = False
+                controls["ColourGains"] = self.color_gains
+                logger.info(f"Updated manual color gains to: {self.color_gains}")
+
+            if framerate is not None:
+                controls["FrameRate"] = framerate
+                logger.info(f"Updated framerate to: {framerate}")
+
+            # Apply controls to running camera
+            self.camera.set_controls(controls)
+
+        except Exception as e:
+            logger.error(f"Failed to update camera settings: {e}")
+
     def stop(self) -> None:
         """Stop the camera and clean up resources."""
         super().stop()
@@ -222,6 +299,8 @@ class CameraManager:
         flip_180: bool = False,
         enabled: bool = True,
         is_noir: bool = True,
+        awb_mode: str = "greyworld",
+        color_gains: tuple[float, float] = (1.5, 1.5),
     ) -> None:
         """
         Initialize camera manager.
@@ -233,6 +312,8 @@ class CameraManager:
             flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             enabled: Whether camera is enabled
             is_noir: Whether using NoIR camera (requires color correction)
+            awb_mode: Auto white balance mode (greyworld recommended for NoIR)
+            color_gains: Manual color gains (red, blue)
         """
         self.width = width
         self.height = height
@@ -240,6 +321,8 @@ class CameraManager:
         self.flip_180 = flip_180
         self.enabled = enabled
         self.is_noir = is_noir
+        self.awb_mode = awb_mode
+        self.color_gains = color_gains
         self.current_track: Optional[PiCameraVideoTrack] = None
 
     def create_video_track(self) -> Optional[PiCameraVideoTrack]:
@@ -267,9 +350,61 @@ class CameraManager:
             flip_180=self.flip_180,
             use_mock=not PICAMERA2_AVAILABLE,
             is_noir=self.is_noir,
+            awb_mode=self.awb_mode,
+            color_gains=self.color_gains,
         )
 
         return self.current_track
+
+    def update_settings(
+        self,
+        awb_mode: Optional[str] = None,
+        color_gains: Optional[tuple[float, float]] = None,
+        framerate: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+    ) -> dict:
+        """
+        Update camera settings on the fly.
+
+        Args:
+            awb_mode: Auto white balance mode
+            color_gains: Manual color gains (red, blue)
+            framerate: Target framerate (FPS)
+            width: Video width (requires restart)
+            height: Video height (requires restart)
+
+        Returns:
+            dict with update status and whether restart is needed
+        """
+        needs_restart = False
+
+        # Update manager state
+        if awb_mode is not None:
+            self.awb_mode = awb_mode
+        if color_gains is not None:
+            self.color_gains = color_gains
+        if framerate is not None:
+            self.framerate = framerate
+
+        # Resolution changes require full restart
+        if width is not None and width != self.width:
+            self.width = width
+            needs_restart = True
+        if height is not None and height != self.height:
+            self.height = height
+            needs_restart = True
+
+        # Update running track if exists
+        if self.current_track and not needs_restart:
+            self.current_track.update_settings(
+                awb_mode=awb_mode,
+                color_gains=color_gains,
+                framerate=framerate,
+            )
+            return {"success": True, "needs_restart": False}
+
+        return {"success": True, "needs_restart": needs_restart}
 
     def cleanup(self) -> None:
         """Clean up camera resources."""

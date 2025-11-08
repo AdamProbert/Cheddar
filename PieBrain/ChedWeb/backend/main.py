@@ -12,7 +12,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from config import settings
-from models import SDPOffer, SDPAnswer, HealthResponse, ControlCommand, ErrorResponse
+from models import (
+    SDPOffer,
+    SDPAnswer,
+    HealthResponse,
+    ControlCommand,
+    ErrorResponse,
+    CameraSettings,
+    CameraSettingsResponse,
+)
 from peer_manager import PeerManager
 from camera import CameraManager
 
@@ -185,6 +193,61 @@ async def get_config() -> dict[str, str | int]:
         "command_rate_limit_hz": settings.command_rate_limit_hz,
         "deadman_timeout_ms": settings.deadman_timeout_ms,
     }
+
+
+@app.get("/api/camera/settings", tags=["Camera"])
+async def get_camera_settings() -> dict:
+    """Get current camera settings."""
+    if not camera_manager:
+        raise HTTPException(status_code=503, detail="Camera manager not initialized")
+
+    return {
+        "enabled": camera_manager.enabled,
+        "width": camera_manager.width,
+        "height": camera_manager.height,
+        "framerate": camera_manager.framerate,
+        "flip_180": camera_manager.flip_180,
+        "is_noir": camera_manager.is_noir,
+        "awb_mode": camera_manager.awb_mode,
+        "color_gains": camera_manager.color_gains,
+    }
+
+
+@app.post("/api/camera/settings", response_model=CameraSettingsResponse, tags=["Camera"])
+async def update_camera_settings(settings: CameraSettings) -> CameraSettingsResponse:
+    """
+    Update camera settings on the fly.
+
+    Note: Changes to width/height require reconnecting the video stream.
+    Other settings (AWB, color gains, framerate) apply immediately.
+    """
+    if not camera_manager:
+        raise HTTPException(status_code=503, detail="Camera manager not initialized")
+
+    result = camera_manager.update_settings(
+        awb_mode=settings.awb_mode,
+        color_gains=settings.color_gains,
+        framerate=settings.framerate,
+        width=settings.width,
+        height=settings.height,
+    )
+
+    current_settings = {
+        "enabled": camera_manager.enabled,
+        "width": camera_manager.width,
+        "height": camera_manager.height,
+        "framerate": camera_manager.framerate,
+        "flip_180": camera_manager.flip_180,
+        "is_noir": camera_manager.is_noir,
+        "awb_mode": camera_manager.awb_mode,
+        "color_gains": camera_manager.color_gains,
+    }
+
+    return CameraSettingsResponse(
+        success=result["success"],
+        needs_restart=result["needs_restart"],
+        current_settings=current_settings,
+    )
 
 
 # TODO: Add endpoints for configuration updates, stats, etc.

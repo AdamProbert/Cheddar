@@ -5,6 +5,7 @@ import { ConnectionControls } from './components/ConnectionControls'
 import { VideoFeed } from './components/VideoFeed'
 import { TelemetryCard } from './components/TelemetryCard'
 import { SystemMetricsCard } from './components/SystemMetricsCard'
+import { CameraControls } from './components/CameraControls'
 
 function App() {
   return (
@@ -42,10 +43,12 @@ function App() {
             <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
               <SystemMetricsCard />
             </div>
+            <div className="animate-slide-in" style={{ animationDelay: '0.3s' }}>
+              <CameraControls />
+            </div>
 
             {/* TODO: Add gamepad status card */}
             {/* TODO: Add manual control buttons as fallback */}
-            {/* TODO: Add settings/config panel */}
           </div>
         </div>
       </main>

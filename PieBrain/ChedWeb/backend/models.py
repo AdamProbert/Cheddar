@@ -67,3 +67,27 @@ class ErrorResponse(BaseModel):
 
     error: str = Field(..., description="Error message")
     detail: str | None = Field(None, description="Additional error details")
+
+
+class CameraSettings(BaseModel):
+    """Camera settings update request."""
+
+    awb_mode: str | None = Field(
+        None, description="Auto white balance mode (auto, greyworld, daylight, tungsten, etc.)"
+    )
+    color_gains: tuple[float, float] | None = Field(
+        None, description="Manual color gains (red, blue)"
+    )
+    framerate: int | None = Field(None, ge=1, le=60, description="Framerate in FPS")
+    width: int | None = Field(None, ge=160, le=1920, description="Video width in pixels")
+    height: int | None = Field(None, ge=120, le=1080, description="Video height in pixels")
+
+
+class CameraSettingsResponse(BaseModel):
+    """Camera settings update response."""
+
+    success: bool = Field(..., description="Whether update was successful")
+    needs_restart: bool = Field(
+        default=False, description="Whether video track needs restart for changes to take effect"
+    )
+    current_settings: dict = Field(..., description="Current camera settings")
