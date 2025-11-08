@@ -46,8 +46,10 @@ class PeerManager:
                     signal_strength=None,
                 )
             )
-            # Start system metrics loop
-            asyncio.create_task(self._start_metrics_loop())
+            # Start system metrics loop using event loop
+            loop = asyncio.get_event_loop()
+            self.metrics_task = loop.create_task(self._start_metrics_loop())
+            logger.info("System metrics task started")
 
         @channel.on("message")
         def on_message(message: str) -> None:
