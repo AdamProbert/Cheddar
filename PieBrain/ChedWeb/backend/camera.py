@@ -157,6 +157,10 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 # Capture frame from picamera2
                 array = self.camera.capture_array()
 
+                # picamera2 outputs RGB888, but we need to ensure correct channel order
+                # Convert BGR to RGB if needed (common issue causing purple tint)
+                array = array[:, :, ::-1]  # Reverse color channels: BGR -> RGB
+
                 # Convert to av.VideoFrame
                 frame = VideoFrame.from_ndarray(array, format="rgb24")
                 frame.pts = pts
