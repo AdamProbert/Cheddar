@@ -169,7 +169,7 @@ npm run build
 The camera module has been integrated with the following features:
 
 - Hardware-accelerated H.264 encoding via picamera2
-- Configurable resolution, framerate, and rotation
+- Configurable resolution, framerate, and 180° flip
 - Automatic fallback to mock test pattern when camera unavailable
 - WebRTC video track seamlessly integrated into peer connections
 
@@ -260,7 +260,7 @@ CAMERA_ENABLED=true
 CAMERA_WIDTH=640
 CAMERA_HEIGHT=480
 CAMERA_FRAMERATE=30
-CAMERA_ROTATION=0
+CAMERA_FLIP_180=false
 
 # Serial (for ESP32)
 SERIAL_PORT=/dev/ttyUSB0

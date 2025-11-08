@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         width=settings.camera_width,
         height=settings.camera_height,
         framerate=settings.camera_framerate,
-        rotation=settings.camera_rotation,
+        flip_180=settings.camera_flip_180,
         enabled=settings.camera_enabled,
     )
 

@@ -8,7 +8,7 @@ Video streaming has been implemented with the following features:
 
 - **Hardware-Accelerated H.264 Encoding**: Uses Raspberry Pi's native camera interface (picamera2)
 - **WebRTC Video Track**: Real-time video streaming with ultra-low latency
-- **Configurable Settings**: Resolution, framerate, and rotation can be configured via environment variables
+- **Configurable Settings**: Resolution, framerate, and flip can be configured via environment variables
 - **Mock Mode**: Automatic fallback to test pattern when camera is unavailable
 - **Graceful Degradation**: System works without camera if disabled or unavailable
 
@@ -103,7 +103,7 @@ If you prefer to set up manually or need to troubleshoot:
    CAMERA_WIDTH=640           # Video width (320, 640, 1280, 1920)
    CAMERA_HEIGHT=480          # Video height (240, 480, 720, 1080)
    CAMERA_FRAMERATE=30        # Target FPS (15, 30, 60)
-   CAMERA_ROTATION=0          # Rotation in degrees (0, 90, 180, 270)
+   CAMERA_FLIP_180=false      # Flip camera 180° (for upside-down mounting)
    ```
 
    **Performance Recommendations for Pi 3B:**
@@ -292,7 +292,7 @@ pc.getStats().then(stats => {
 | `CAMERA_WIDTH` | 320-1920 | Video width in pixels | 640 |
 | `CAMERA_HEIGHT` | 240-1080 | Video height in pixels | 480 |
 | `CAMERA_FRAMERATE` | 10-60 | Target frames per second | 30 |
-| `CAMERA_ROTATION` | 0, 90, 180, 270 | Camera rotation | 0 or 180 |
+| `CAMERA_FLIP_180` | `true`/`false` | Flip camera 180° | `false` (or `true` if upside-down) |
 
 ### Resolution Presets
 

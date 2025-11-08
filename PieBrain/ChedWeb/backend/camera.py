@@ -13,11 +13,13 @@ from loguru import logger
 
 try:
     from picamera2 import Picamera2
+    import libcamera
 
     PICAMERA2_AVAILABLE = True
 except ImportError:
     logger.warning("picamera2 not available - camera streaming will be disabled")
     PICAMERA2_AVAILABLE = False
+    libcamera = None  # type: ignore
 
 
 class PiCameraVideoTrack(VideoStreamTrack):
@@ -33,7 +35,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
         width: int = 640,
         height: int = 480,
         framerate: int = 30,
-        rotation: int = 0,
+        flip_180: bool = False,
         use_mock: bool = False,
     ) -> None:
         """
@@ -43,14 +45,14 @@ class PiCameraVideoTrack(VideoStreamTrack):
             width: Video width in pixels
             height: Video height in pixels
             framerate: Target framerate (FPS)
-            rotation: Camera rotation in degrees (0, 90, 180, 270)
+            flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             use_mock: If True, use mock video source instead of real camera
         """
         super().__init__()
         self.width = width
         self.height = height
         self.framerate = framerate
-        self.rotation = rotation
+        self.flip_180 = flip_180
         self.use_mock = use_mock or not PICAMERA2_AVAILABLE
 
         self.camera: Optional[Picamera2] = None
@@ -69,7 +71,9 @@ class PiCameraVideoTrack(VideoStreamTrack):
             raise ImportError("picamera2 is required for camera streaming")
 
         try:
-            logger.info(f"Initializing Pi camera: {self.width}x{self.height}@{self.framerate}fps")
+            logger.info(
+                f"Initializing Pi camera: {self.width}x{self.height}@{self.framerate}fps, flip_180={self.flip_180}"
+            )
 
             self.camera = Picamera2()
 
@@ -79,9 +83,9 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 controls={"FrameRate": self.framerate},
             )
 
-            # Apply rotation if specified
-            if self.rotation != 0:
-                video_config["transform"] = {"rotation": self.rotation}
+            # Flip camera 180 degrees if needed (for upside-down mounting)
+            if self.flip_180:
+                video_config["transform"] = libcamera.Transform(hflip=1, vflip=1)
 
             self.camera.configure(video_config)
             self.camera.start()
@@ -200,7 +204,7 @@ class CameraManager:
         width: int = 640,
         height: int = 480,
         framerate: int = 30,
-        rotation: int = 0,
+        flip_180: bool = False,
         enabled: bool = True,
     ) -> None:
         """
@@ -210,13 +214,13 @@ class CameraManager:
             width: Video width in pixels
             height: Video height in pixels
             framerate: Target framerate (FPS)
-            rotation: Camera rotation in degrees (0, 90, 180, 270)
+            flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             enabled: Whether camera is enabled
         """
         self.width = width
         self.height = height
         self.framerate = framerate
-        self.rotation = rotation
+        self.flip_180 = flip_180
         self.enabled = enabled
         self.current_track: Optional[PiCameraVideoTrack] = None
 
@@ -242,7 +246,7 @@ class CameraManager:
             width=self.width,
             height=self.height,
             framerate=self.framerate,
-            rotation=self.rotation,
+            flip_180=self.flip_180,
             use_mock=not PICAMERA2_AVAILABLE,
         )
 

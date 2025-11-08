@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     camera_width: int = 640
     camera_height: int = 480
     camera_framerate: int = 30
-    camera_rotation: int = 0  # 0, 90, 180, or 270 degrees
+    camera_flip_180: bool = False  # Flip camera 180 degrees (hflip + vflip)
 
     # Safety (placeholders)
     deadman_timeout_ms: int = 500

@@ -1,6 +1,7 @@
 # System Telemetry Implementation (Option 3: DataChannel)
 
 ## Overview
+
 Implemented real-time system metrics monitoring sent via WebRTC DataChannel with time-series graphs.
 
 ## What Was Added
@@ -60,6 +61,7 @@ Implemented real-time system metrics monitoring sent via WebRTC DataChannel with
 ## Installation Steps
 
 ### Backend (on Raspberry Pi)
+
 ```bash
 cd /Users/adamprobert/projects/Cheddar/PieBrain/ChedWeb/backend
 source .venv/bin/activate  # or create venv if needed
@@ -67,6 +69,7 @@ pip install -r requirements.txt
 ```
 
 ### Frontend (already done)
+
 ```bash
 cd /Users/adamprobert/projects/Cheddar/PieBrain/ChedWeb/frontend
 npm install  # recharts already installed

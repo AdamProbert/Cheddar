@@ -118,15 +118,15 @@ class PeerManager:
         cpu_temp = None
         try:
             temps = psutil.sensors_temperatures()
-            if temps and 'cpu_thermal' in temps:
-                cpu_temp = temps['cpu_thermal'][0].current
+            if temps and "cpu_thermal" in temps:
+                cpu_temp = temps["cpu_thermal"][0].current
         except Exception as e:
             logger.debug(f"Could not read CPU temperature: {e}")
 
         # Get disk usage for root partition
         disk_percent = None
         try:
-            disk_percent = psutil.disk_usage('/').percent
+            disk_percent = psutil.disk_usage("/").percent
         except Exception as e:
             logger.debug(f"Could not read disk usage: {e}")
 
