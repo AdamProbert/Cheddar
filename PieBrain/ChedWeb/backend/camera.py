@@ -86,31 +86,39 @@ class PiCameraVideoTrack(VideoStreamTrack):
 
             self.camera = Picamera2()
 
-            # Map AWB mode string to libcamera enum
-            awb_mode_map = {
-                "auto": libcamera.controls.AwbModeEnum.Auto,
-                "greyworld": libcamera.controls.AwbModeEnum.GreyWorld,  # Note: GreyWorld not Greyworld
-                "daylight": libcamera.controls.AwbModeEnum.Daylight,
-                "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
-                "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
-                "indoor": libcamera.controls.AwbModeEnum.Indoor,
-                "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
-            }
-
             # Build controls dictionary
             controls = {"FrameRate": self.framerate}
 
-            if self.awb_mode and self.awb_mode.lower() in awb_mode_map:
-                controls["AwbEnable"] = True
-                controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
-                logger.info(f"Using AWB mode: {self.awb_mode}")
+            if self.awb_mode and self.awb_mode.lower() != "manual":
+                # AWB modes are set by index, not enum
+                awb_mode_index = {
+                    "auto": 0,
+                    "incandescent": 1,
+                    "tungsten": 2,
+                    "fluorescent": 3,
+                    "indoor": 4,
+                    "daylight": 5,
+                    "cloudy": 6,
+                    "greyworld": 0,  # Use auto mode as fallback for greyworld
+                }
+
+                if self.awb_mode.lower() in awb_mode_index:
+                    controls["AwbEnable"] = True
+                    controls["AwbMode"] = awb_mode_index[self.awb_mode.lower()]
+                    logger.info(
+                        f"Using AWB mode: {self.awb_mode} (index {awb_mode_index[self.awb_mode.lower()]})"
+                    )
+                else:
+                    logger.warning(f"Unknown AWB mode: {self.awb_mode}, using Auto")
+                    controls["AwbEnable"] = True
+                    controls["AwbMode"] = 0
             else:
                 # Manual color gains
                 controls["AwbEnable"] = False
                 controls["ColourGains"] = self.color_gains
-                logger.info(f"Using manual color gains: {self.color_gains}")
-
-            # Configure camera for video streaming
+                logger.info(
+                    f"Using manual color gains: {self.color_gains}"
+                )  # Configure camera for video streaming
             video_config = self.camera.create_video_configuration(
                 main={"size": (self.width, self.height), "format": "RGB888"},
                 controls=controls,
@@ -240,19 +248,21 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 # Apply settings to camera
                 controls = {}
 
-                if self.awb_mode:
-                    awb_mode_map = {
-                        "auto": libcamera.controls.AwbModeEnum.Auto,
-                        "greyworld": libcamera.controls.AwbModeEnum.GreyWorld,  # Note: GreyWorld not Greyworld
-                        "daylight": libcamera.controls.AwbModeEnum.Daylight,
-                        "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
-                        "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
-                        "indoor": libcamera.controls.AwbModeEnum.Indoor,
-                        "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
+                if self.awb_mode and self.awb_mode.lower() != "manual":
+                    # AWB modes are set by index
+                    awb_mode_index = {
+                        "auto": 0,
+                        "incandescent": 1,
+                        "tungsten": 2,
+                        "fluorescent": 3,
+                        "indoor": 4,
+                        "daylight": 5,
+                        "cloudy": 6,
+                        "greyworld": 0,  # Use auto mode as fallback
                     }
-                    if self.awb_mode.lower() in awb_mode_map:
+                    if self.awb_mode.lower() in awb_mode_index:
                         controls["AwbEnable"] = True
-                        controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
+                        controls["AwbMode"] = awb_mode_index[self.awb_mode.lower()]
                 else:
                     controls["AwbEnable"] = False
                     controls["ColourGains"] = self.color_gains

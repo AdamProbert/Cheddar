@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         flip_180=settings.camera_flip_180,
         enabled=settings.camera_enabled,
         is_noir=True,  # Set to True for NoIR cameras
-        awb_mode="greyworld",  # Recommended for NoIR cameras
+        awb_mode="auto",  # Using auto AWB mode (greyworld not available as enum)
         color_gains=(1.5, 1.5),  # Default color gains
     )
 
