@@ -407,8 +407,23 @@ export class InputManager {
     const wasEmergencyStop = this.state.emergencyStop
     this.state.emergencyStop = false
     
-    // Get gamepad state
-    const gamepad = this.getGamepad()
+    // Get gamepad state (with fallback detection)
+    let gamepad = this.getGamepad()
+    
+    // If no gamepad but we haven't checked recently, scan for gamepads
+    // This handles browsers that don't fire gamepadconnected events
+    if (!gamepad && this.gamepadIndex === null) {
+      const gamepads = navigator.getGamepads()
+      for (let i = 0; i < gamepads.length; i++) {
+        const foundGamepad = gamepads[i]
+        if (foundGamepad) {
+          this.gamepadIndex = i
+          gamepad = foundGamepad
+          console.log('Gamepad auto-detected:', foundGamepad.id)
+          break
+        }
+      }
+    }
     
     if (gamepad) {
       // Gamepad has priority over keyboard
@@ -451,9 +466,27 @@ export class InputManager {
   
   /**
    * Get current gamepad connection status
+   * Scans all gamepad slots to handle browsers that don't fire connection events
    */
   isGamepadConnected(): boolean {
-    return this.gamepadIndex !== null && this.getGamepad() !== null
+    // First check if we have a known gamepad index
+    if (this.gamepadIndex !== null && this.getGamepad() !== null) {
+      return true
+    }
+    
+    // Fallback: scan all gamepad slots for connected gamepads
+    // This handles browsers that don't fire gamepadconnected events reliably
+    const gamepads = navigator.getGamepads()
+    for (let i = 0; i < gamepads.length; i++) {
+      if (gamepads[i]) {
+        // Found a connected gamepad - remember its index
+        this.gamepadIndex = i
+        console.log('Gamepad detected via polling:', gamepads[i]?.id)
+        return true
+      }
+    }
+    
+    return false
   }
   
   /**
@@ -475,5 +508,6 @@ export class InputManager {
    */
   setDriveMode(mode: DriveMode): void {
     this.state.driveMode = mode
+    this.emitState()
   }
 }
