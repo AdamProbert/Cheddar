@@ -1,5 +1,5 @@
 /**
- * Connection controls and status display
+ * Connection controls with Satisfactory-themed status indicators
  */
 import { useState } from 'react'
 import { useAppStore } from '@/store'
@@ -67,28 +67,40 @@ export function ConnectionControls() {
 
   return (
     <div className="flex items-center gap-4">
-      {/* Status indicator */}
-      <div className="flex items-center gap-2">
+      {/* Status indicator with industrial styling */}
+      <div className="flex items-center gap-2 px-3 py-1 rounded bg-satisfactory-panel border border-satisfactory-panel-border">
         {connectionState === 'connecting' || isConnecting ? (
-          <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+          <Loader2 className="w-5 h-5 animate-spin text-satisfactory-cyan" />
         ) : isConnected ? (
-          <Wifi className="w-5 h-5 text-green-500" />
+          <div className="relative">
+            <Wifi className="w-5 h-5 text-green-500" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full status-online"></div>
+          </div>
         ) : (
-          <WifiOff className="w-5 h-5 text-gray-400" />
+          <WifiOff className="w-5 h-5 text-gray-500" />
         )}
-        <span className="text-sm font-medium capitalize">{connectionState}</span>
+        <span className="text-sm font-bold uppercase tracking-wider">
+          {connectionState === 'connecting' ? (
+            <span className="text-satisfactory-cyan">Linking...</span>
+          ) : isConnected ? (
+            <span className="text-green-500">Online</span>
+          ) : (
+            <span className="text-gray-500">Offline</span>
+          )}
+        </span>
       </div>
 
       {/* Connect/Disconnect button */}
       {isConnected ? (
-        <Button variant="destructive" onClick={handleDisconnect}>
+        <Button variant="destructive" onClick={handleDisconnect} size="sm">
           Disconnect
         </Button>
       ) : (
-        <Button onClick={handleConnect} disabled={isConnecting || connectionState === 'connecting'}>
+        <Button onClick={handleConnect} disabled={isConnecting || connectionState === 'connecting'} size="sm">
           {isConnecting || connectionState === 'connecting' ? 'Connecting...' : 'Connect'}
         </Button>
       )}
     </div>
   )
 }
+

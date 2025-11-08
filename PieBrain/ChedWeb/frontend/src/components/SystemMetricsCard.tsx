@@ -1,5 +1,5 @@
 /**
- * System metrics display with time-series graphs
+ * System metrics display with Satisfactory-themed graphs
  */
 import { useAppStore } from '@/store'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
@@ -21,54 +21,54 @@ export function SystemMetricsCard() {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Activity className="w-5 h-5" />
-          System Metrics
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-satisfactory-orange" />
+          System Performance
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Current values */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col">
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <Cpu className="w-4 h-4" />
+          <div className="flex flex-col bg-satisfactory-panel p-3 rounded border border-satisfactory-panel-border">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 uppercase tracking-wider mb-1">
+              <Cpu className="w-3 h-3" />
               CPU
             </span>
-            <span className="text-2xl font-bold text-foreground">
+            <span className="text-2xl font-bold font-mono text-satisfactory-orange">
               {systemMetrics?.cpu_percent !== undefined ? `${systemMetrics.cpu_percent.toFixed(1)}%` : '--'}
             </span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <HardDrive className="w-4 h-4" />
+          <div className="flex flex-col bg-satisfactory-panel p-3 rounded border border-satisfactory-panel-border">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 uppercase tracking-wider mb-1">
+              <HardDrive className="w-3 h-3" />
               Memory
             </span>
-            <span className="text-2xl font-bold text-foreground">
+            <span className="text-2xl font-bold font-mono text-satisfactory-cyan">
               {systemMetrics?.memory_percent !== undefined
                 ? `${systemMetrics.memory_percent.toFixed(1)}%`
                 : '--'}
             </span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <Thermometer className="w-4 h-4" />
+          <div className="flex flex-col bg-satisfactory-panel p-3 rounded border border-satisfactory-panel-border">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 uppercase tracking-wider mb-1">
+              <Thermometer className="w-3 h-3" />
               Temp
             </span>
-            <span className="text-2xl font-bold text-foreground">
+            <span className="text-2xl font-bold font-mono text-red-400">
               {systemMetrics?.cpu_temp !== undefined && systemMetrics.cpu_temp !== null
                 ? `${systemMetrics.cpu_temp.toFixed(1)}°C`
                 : '--'}
             </span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <HardDrive className="w-4 h-4" />
+          <div className="flex flex-col bg-satisfactory-panel p-3 rounded border border-satisfactory-panel-border">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 uppercase tracking-wider mb-1">
+              <HardDrive className="w-3 h-3" />
               Disk
             </span>
-            <span className="text-2xl font-bold text-foreground">
+            <span className="text-2xl font-bold font-mono text-foreground">
               {systemMetrics?.disk_percent !== undefined && systemMetrics.disk_percent !== null
                 ? `${systemMetrics.disk_percent.toFixed(1)}%`
                 : '--'}
@@ -79,27 +79,28 @@ export function SystemMetricsCard() {
         {/* CPU & Memory Graph */}
         {chartData.length > 1 && (
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">CPU & Memory Usage</h3>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">CPU & Memory Usage</h3>
             <ResponsiveContainer width="100%" height={150}>
               <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--satisfactory-panel-border))" opacity={0.3} />
                 <XAxis
                   dataKey="time"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={val => `${val}s`}
-                  className="text-muted-foreground"
+                  stroke="hsl(var(--satisfactory-panel-border))"
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={val => `${val}%`}
-                  className="text-muted-foreground"
+                  stroke="hsl(var(--satisfactory-panel-border))"
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px',
+                    backgroundColor: 'hsl(var(--satisfactory-panel))',
+                    border: '2px solid hsl(var(--satisfactory-panel-border))',
+                    borderRadius: '4px',
+                    color: 'hsl(var(--foreground))',
                   }}
                   formatter={(value: number) => `${value.toFixed(1)}%`}
                 />
@@ -107,7 +108,7 @@ export function SystemMetricsCard() {
                 <Line
                   type="monotone"
                   dataKey="cpu"
-                  stroke="#3b82f6"
+                  stroke="hsl(var(--satisfactory-orange))"
                   name="CPU"
                   strokeWidth={2}
                   dot={false}
@@ -116,7 +117,7 @@ export function SystemMetricsCard() {
                 <Line
                   type="monotone"
                   dataKey="memory"
-                  stroke="#10b981"
+                  stroke="hsl(var(--satisfactory-cyan))"
                   name="Memory"
                   strokeWidth={2}
                   dot={false}
@@ -130,27 +131,28 @@ export function SystemMetricsCard() {
         {/* Temperature Graph */}
         {chartData.length > 1 && chartData.some(d => d.temp !== null) && (
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">CPU Temperature</h3>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">CPU Temperature</h3>
             <ResponsiveContainer width="100%" height={120}>
               <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--satisfactory-panel-border))" opacity={0.3} />
                 <XAxis
                   dataKey="time"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={val => `${val}s`}
-                  className="text-muted-foreground"
+                  stroke="hsl(var(--satisfactory-panel-border))"
                 />
                 <YAxis
                   domain={[0, 'auto']}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={val => `${val}°C`}
-                  className="text-muted-foreground"
+                  stroke="hsl(var(--satisfactory-panel-border))"
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px',
+                    backgroundColor: 'hsl(var(--satisfactory-panel))',
+                    border: '2px solid hsl(var(--satisfactory-panel-border))',
+                    borderRadius: '4px',
+                    color: 'hsl(var(--foreground))',
                   }}
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={(value: any) =>
@@ -173,11 +175,12 @@ export function SystemMetricsCard() {
         )}
 
         {chartData.length <= 1 && (
-          <div className="text-sm text-muted-foreground text-center py-4">
-            Waiting for metrics data...
+          <div className="text-xs text-muted-foreground text-center py-4 uppercase tracking-wider">
+            [ Initializing Metrics... ]
           </div>
         )}
       </CardContent>
     </Card>
   )
 }
+

@@ -1,5 +1,5 @@
 /**
- * Reusable Card component with shadcn/ui styling
+ * Reusable Card component with Satisfactory-inspired industrial styling
  */
 import { cn } from '@/lib/utils'
 
@@ -12,7 +12,7 @@ export function Card({ className, children }: CardProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card text-card-foreground shadow-sm',
+        'panel-industrial rounded shadow-lg',
         className
       )}
     >
@@ -27,7 +27,11 @@ interface CardHeaderProps {
 }
 
 export function CardHeader({ className, children }: CardHeaderProps) {
-  return <div className={cn('flex flex-col space-y-1.5 p-6', className)}>{children}</div>
+  return (
+    <div className={cn('flex flex-col space-y-1.5 p-6 border-b border-satisfactory-panel-border', className)}>
+      {children}
+    </div>
+  )
 }
 
 interface CardTitleProps {
@@ -36,7 +40,11 @@ interface CardTitleProps {
 }
 
 export function CardTitle({ className, children }: CardTitleProps) {
-  return <h3 className={cn('text-2xl font-semibold leading-none tracking-tight', className)}>{children}</h3>
+  return (
+    <h3 className={cn('text-xl font-bold tracking-wide uppercase text-satisfactory-orange', className)}>
+      {children}
+    </h3>
+  )
 }
 
 interface CardContentProps {
@@ -45,5 +53,5 @@ interface CardContentProps {
 }
 
 export function CardContent({ className, children }: CardContentProps) {
-  return <div className={cn('p-6 pt-0', className)}>{children}</div>
+  return <div className={cn('p-6 pt-4', className)}>{children}</div>
 }

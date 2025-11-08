@@ -4,24 +4,32 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.47 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-    --radius: 0.5rem;
+    /* Satisfactory-inspired color palette */
+    --background: 210 15% 8%;  /* Dark blue-gray background */
+    --foreground: 40 5% 95%;   /* Off-white text */
+    --card: 210 20% 12%;       /* Slightly lighter panels */
+    --card-foreground: 40 5% 95%;
+    --primary: 35 100% 55%;    /* Satisfactory orange */
+    --primary-foreground: 210 20% 10%;
+    --secondary: 195 80% 45%;  /* Cyan accent */
+    --secondary-foreground: 40 5% 95%;
+    --muted: 210 15% 18%;      /* Muted gray */
+    --muted-foreground: 40 5% 65%;
+    --accent: 35 100% 55%;     /* Orange accent */
+    --accent-foreground: 210 20% 10%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 40 5% 95%;
+    --border: 210 20% 20%;     /* Subtle borders */
+    --input: 210 20% 15%;
+    --ring: 35 100% 55%;       /* Orange focus ring */
+    --radius: 0.25rem;         /* Sharp, industrial corners */
+    
+    /* Custom Satisfactory colors */
+    --satisfactory-orange: 35 100% 55%;
+    --satisfactory-yellow: 45 100% 60%;
+    --satisfactory-cyan: 195 80% 45%;
+    --satisfactory-panel: 210 20% 12%;
+    --satisfactory-panel-border: 210 25% 25%;
   }
 }
 
@@ -31,5 +39,49 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+}
+
+@layer utilities {
+  /* Satisfactory-style glowing effects */
+  .glow-orange {
+    box-shadow: 0 0 10px rgba(255, 140, 0, 0.3), 0 0 20px rgba(255, 140, 0, 0.1);
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 10px rgba(64, 185, 217, 0.3), 0 0 20px rgba(64, 185, 217, 0.1);
+  }
+  
+  /* Industrial panel effect */
+  .panel-industrial {
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(210 20% 10%) 100%);
+    border: 2px solid hsl(var(--satisfactory-panel-border));
+    position: relative;
+  }
+  
+  .panel-industrial::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      hsl(var(--satisfactory-orange)) 50%, 
+      transparent 100%);
+    opacity: 0.6;
+  }
+  
+  /* Status indicator styles */
+  .status-online {
+    @apply bg-green-500;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  }
+  
+  .status-offline {
+    @apply bg-red-500;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
   }
 }

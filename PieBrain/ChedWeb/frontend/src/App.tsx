@@ -1,5 +1,5 @@
 /**
- * Main App component
+ * Main App component with Satisfactory-themed design
  */
 import { ConnectionControls } from './components/ConnectionControls'
 import { VideoFeed } from './components/VideoFeed'
@@ -9,28 +9,39 @@ import { SystemMetricsCard } from './components/SystemMetricsCard'
 function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
+      {/* Header with industrial aesthetic */}
+      <header className="border-b-2 border-satisfactory-orange bg-gradient-to-r from-satisfactory-panel via-card to-satisfactory-panel shadow-lg">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">ChedWeb Rover Control</h1>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-8 bg-satisfactory-orange animate-pulse-glow"></div>
+              <h1 className="text-2xl font-bold tracking-wider uppercase">
+                <span className="text-satisfactory-orange">Ched</span>
+                <span className="text-satisfactory-cyan">Web</span>
+                <span className="text-muted-foreground ml-2">// Rover Control</span>
+              </h1>
+            </div>
             <ConnectionControls />
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content with grid layout */}
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video Feed - takes 2 columns on large screens */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 animate-slide-in">
             <VideoFeed />
           </div>
 
           {/* Sidebar - telemetry and controls */}
           <div className="space-y-6">
-            <TelemetryCard />
-            <SystemMetricsCard />
+            <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
+              <TelemetryCard />
+            </div>
+            <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
+              <SystemMetricsCard />
+            </div>
 
             {/* TODO: Add gamepad status card */}
             {/* TODO: Add manual control buttons as fallback */}
