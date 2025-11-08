@@ -1,0 +1,70 @@
+/**
+ * Zod schemas for API types - mirrors backend Pydantic models
+ */
+import { z } from 'zod'
+
+export const SDPOfferSchema = z.object({
+  sdp: z.string(),
+  type: z.literal('offer'),
+})
+
+export const SDPAnswerSchema = z.object({
+  sdp: z.string(),
+  type: z.literal('answer'),
+})
+
+export const HealthResponseSchema = z.object({
+  status: z.string(),
+  timestamp: z.string(),
+  version: z.string(),
+})
+
+export const ControlCommandSchema = z.object({
+  type: z.enum(['motor', 'servo', 'ping', 'stop', 'estop']),
+  // 6-wheel drive control (preferred)
+  motors: z.array(z.number().min(-1).max(1)).length(6).optional(),
+  // 6-wheel steering control (preferred) - 90 degrees = straight ahead
+  servos: z.array(z.number().int().min(0).max(180)).length(6).optional(),
+  // Legacy simple control (deprecated)
+  motor_left: z.number().min(-1).max(1).optional(),
+  motor_right: z.number().min(-1).max(1).optional(),
+  servo_pan: z.number().int().min(0).max(180).optional(),
+  servo_tilt: z.number().int().min(0).max(180).optional(),
+  timestamp: z.number(),
+})
+
+export const SystemMetricsSchema = z.object({
+  type: z.literal('metrics'),
+  cpu_percent: z.number(),
+  memory_percent: z.number(),
+  cpu_temp: z.number().nullable().optional(),
+  disk_percent: z.number().nullable().optional(),
+  timestamp: z.number(),
+})
+
+export const ConfigResponseSchema = z.object({
+  version: z.string(),
+  stun_server: z.string(),
+  command_rate_limit_hz: z.number(),
+  deadman_timeout_ms: z.number(),
+})
+
+export const CameraSettingsSchema = z.object({
+  enabled: z.boolean(),
+  width: z.number(),
+  height: z.number(),
+  framerate: z.number(),
+  flip_180: z.boolean(),
+  is_noir: z.boolean(),
+  awb_mode: z.string(),
+  color_gains: z.tuple([z.number(), z.number()]),
+})
+
+// Type inference
+export type SDPOffer = z.infer<typeof SDPOfferSchema>
+export type SDPAnswer = z.infer<typeof SDPAnswerSchema>
+export type HealthResponse = z.infer<typeof HealthResponseSchema>
+export type ControlCommand = z.infer<typeof ControlCommandSchema>
+export type SystemMetrics = z.infer<typeof SystemMetricsSchema>
+export type ConfigResponse = z.infer<typeof ConfigResponseSchema>
+export type CameraSettings = z.infer<typeof CameraSettingsSchema>
