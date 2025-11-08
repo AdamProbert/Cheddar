@@ -223,50 +223,51 @@ class PiCameraVideoTrack(VideoStreamTrack):
             color_gains: Manual color gains (red, blue)
             framerate: Target framerate (FPS)
         """
-        if not self.camera or self.use_mock:
-            logger.warning("Cannot update settings - camera not initialized or using mock")
-            return
+        # Always update internal state (will be used when camera initializes)
+        if awb_mode is not None:
+            self.awb_mode = awb_mode
+            logger.info(f"Set AWB mode to: {self.awb_mode}")
+        if color_gains is not None:
+            self.color_gains = color_gains
+            logger.info(f"Set color gains to: {self.color_gains}")
+        if framerate is not None:
+            self.framerate = framerate
+            logger.info(f"Set framerate to: {framerate}")
 
-        try:
-            # Update internal state
-            if awb_mode is not None:
-                self.awb_mode = awb_mode
-            if color_gains is not None:
-                self.color_gains = color_gains
-            if framerate is not None:
-                self.framerate = framerate
+        # If camera is running, apply settings immediately
+        if self.camera and not self.use_mock:
+            try:
+                # Apply settings to camera
+                controls = {}
 
-            # Apply settings to camera
-            controls = {}
+                if self.awb_mode:
+                    awb_mode_map = {
+                        "auto": libcamera.controls.AwbModeEnum.Auto,
+                        "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
+                        "daylight": libcamera.controls.AwbModeEnum.Daylight,
+                        "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
+                        "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
+                        "indoor": libcamera.controls.AwbModeEnum.Indoor,
+                        "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
+                    }
+                    if self.awb_mode.lower() in awb_mode_map:
+                        controls["AwbEnable"] = True
+                        controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
+                else:
+                    controls["AwbEnable"] = False
+                    controls["ColourGains"] = self.color_gains
 
-            if self.awb_mode:
-                awb_mode_map = {
-                    "auto": libcamera.controls.AwbModeEnum.Auto,
-                    "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
-                    "daylight": libcamera.controls.AwbModeEnum.Daylight,
-                    "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
-                    "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
-                    "indoor": libcamera.controls.AwbModeEnum.Indoor,
-                    "cloudy": libcamera.controls.AwbModeEnum.Cloudy,
-                }
-                if self.awb_mode.lower() in awb_mode_map:
-                    controls["AwbEnable"] = True
-                    controls["AwbMode"] = awb_mode_map[self.awb_mode.lower()]
-                    logger.info(f"Updated AWB mode to: {self.awb_mode}")
-            else:
-                controls["AwbEnable"] = False
-                controls["ColourGains"] = self.color_gains
-                logger.info(f"Updated manual color gains to: {self.color_gains}")
+                if framerate is not None:
+                    controls["FrameRate"] = framerate
 
-            if framerate is not None:
-                controls["FrameRate"] = framerate
-                logger.info(f"Updated framerate to: {framerate}")
+                # Apply controls to running camera
+                self.camera.set_controls(controls)
+                logger.info("Applied settings to running camera")
 
-            # Apply controls to running camera
-            self.camera.set_controls(controls)
-
-        except Exception as e:
-            logger.error(f"Failed to update camera settings: {e}")
+            except Exception as e:
+                logger.error(f"Failed to apply camera settings: {e}")
+        else:
+            logger.info("Settings saved - will be applied when camera starts")
 
     def stop(self) -> None:
         """Stop the camera and clean up resources."""
