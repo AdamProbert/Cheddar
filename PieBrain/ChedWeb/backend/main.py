@@ -4,7 +4,9 @@ import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -84,6 +86,18 @@ app.add_middleware(
 )
 
 
+# Add validation exception handler for better debugging
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error on {request.url}")
+    logger.error(f"Errors: {exc.errors()}")
+    logger.error(f"Body: {exc.body}")
+    return JSONResponse(
+        status_code=400,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
+
 @app.get("/healthz", response_model=HealthResponse, tags=["System"])
 async def health_check() -> HealthResponse:
     """Health check endpoint."""
@@ -98,6 +112,9 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
     This endpoint receives an SDP offer from the client, creates a peer connection,
     and returns an SDP answer to complete the WebRTC negotiation.
     """
+    logger.info(f"Received request at /signaling/offer")
+    logger.debug(f"Offer payload: {offer}")
+
     if not peer_manager:
         raise HTTPException(status_code=500, detail="Peer manager not initialized")
 
