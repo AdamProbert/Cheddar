@@ -27,33 +27,6 @@ class PeerManager:
         self.control_channel: RTCDataChannel | None = None
         self.on_command_callback: Callable[[ControlCommand], None] | None = None
 
-    async def create_peer_connection(self) -> RTCPeerConnection:
-        """Create a new RTCPeerConnection with configured ICE servers."""
-        # TODO: Add proper ICE server configuration once TURN is set up
-        self.pc = RTCPeerConnection()
-
-        @self.pc.on("connectionstatechange")
-        async def on_connectionstatechange() -> None:
-            logger.info(f"Connection state: {self.pc.connectionState}")
-            if self.pc.connectionState == "failed":
-                await self.close()
-
-        @self.pc.on("datachannel")
-        def on_datachannel(channel: RTCDataChannel) -> None:
-            logger.info(f"DataChannel created: {channel.label}")
-            if channel.label == "control":
-                self.control_channel = channel
-                self._setup_datachannel(channel)
-
-        # Add video track if available
-        if self.video_track:
-            logger.info("Adding video track to peer connection")
-            self.pc.addTrack(self.video_track)
-        else:
-            logger.warning("No video track available - video streaming disabled")
-
-        return self.pc
-
     def _setup_datachannel(self, channel: RTCDataChannel) -> None:
         """Set up message handlers for the control DataChannel."""
 
@@ -128,11 +101,32 @@ class PeerManager:
     async def handle_offer(self, offer_sdp: str) -> str:
         """Handle SDP offer and return SDP answer."""
         if not self.pc:
-            await self.create_peer_connection()
+            # Create peer connection without video track initially
+            self.pc = RTCPeerConnection()
 
-        # Set remote description
+            @self.pc.on("connectionstatechange")
+            async def on_connectionstatechange() -> None:
+                logger.info(f"Connection state: {self.pc.connectionState}")
+                if self.pc.connectionState == "failed":
+                    await self.close()
+
+            @self.pc.on("datachannel")
+            def on_datachannel(channel: RTCDataChannel) -> None:
+                logger.info(f"DataChannel created: {channel.label}")
+                if channel.label == "control":
+                    self.control_channel = channel
+                    self._setup_datachannel(channel)
+
+        # Set remote description first
         offer = RTCSessionDescription(sdp=offer_sdp, type="offer")
         await self.pc.setRemoteDescription(offer)
+
+        # Now add video track after we know what the client wants
+        if self.video_track:
+            logger.info("Adding video track to peer connection")
+            self.pc.addTrack(self.video_track)
+        else:
+            logger.warning("No video track available - video streaming disabled")
 
         # Create answer
         answer = await self.pc.createAnswer()
