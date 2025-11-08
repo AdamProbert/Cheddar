@@ -115,10 +115,21 @@ export class InputManager {
     window.addEventListener('gamepadconnected', this.handleGamepadConnected)
     window.addEventListener('gamepaddisconnected', this.handleGamepadDisconnected)
     
+    // Check for already-connected gamepads on start
+    console.log('[InputManager] Starting... checking for gamepads')
+    const gamepads = navigator.getGamepads()
+    console.log('[InputManager] navigator.getGamepads() result:', gamepads)
+    for (let i = 0; i < gamepads.length; i++) {
+      if (gamepads[i]) {
+        console.log(`[InputManager] Found pre-connected gamepad at index ${i}:`, gamepads[i]?.id)
+        console.log('[InputManager] Note: You may need to press a button for it to become active')
+      }
+    }
+    
     // Start polling loop
     this.pollInputs()
     
-    console.log('InputManager started')
+    console.log('[InputManager] Started successfully')
   }
   
   /**
@@ -160,12 +171,16 @@ export class InputManager {
    * Gamepad event handlers
    */
   private handleGamepadConnected = (event: GamepadEvent): void => {
-    console.log('Gamepad connected:', event.gamepad.id)
+    console.log('[InputManager] 🎮 Gamepad connected event fired!')
+    console.log('[InputManager] Gamepad:', event.gamepad.id)
+    console.log('[InputManager] Index:', event.gamepad.index)
+    console.log('[InputManager] Buttons:', event.gamepad.buttons.length)
+    console.log('[InputManager] Axes:', event.gamepad.axes.length)
     this.gamepadIndex = event.gamepad.index
   }
   
   private handleGamepadDisconnected = (event: GamepadEvent): void => {
-    console.log('Gamepad disconnected:', event.gamepad.id)
+    console.log('[InputManager] 🎮 Gamepad disconnected:', event.gamepad.id)
     if (this.gamepadIndex === event.gamepad.index) {
       this.gamepadIndex = null
     }
@@ -404,7 +419,6 @@ export class InputManager {
    */
   private pollInputs = (): void => {
     // Reset emergency stop flag (needs to be re-triggered each frame)
-    const wasEmergencyStop = this.state.emergencyStop
     this.state.emergencyStop = false
     
     // Get gamepad state (with fallback detection)
@@ -433,26 +447,12 @@ export class InputManager {
       this.updateFromKeyboard()
     }
     
-    // Emit state if changed or emergency stop
-    if (wasEmergencyStop !== this.state.emergencyStop || this.hasInputActivity()) {
-      this.emitState()
-    }
+    // Always emit state to ensure UI updates even when returning to neutral
+    // This fixes the issue where releasing sticks doesn't update the display
+    this.emitState()
     
     // Continue polling
     this.animationFrameId = requestAnimationFrame(this.pollInputs)
-  }
-  
-  /**
-   * Check if there's any input activity
-   */
-  private hasInputActivity(): boolean {
-    // Check motors
-    if (this.state.motors.some(m => m !== 0)) return true
-    
-    // Check servos (not at neutral)
-    if (this.state.servos.some(s => Math.abs(s - 90) > 1)) return true
-    
-    return false
   }
   
   /**

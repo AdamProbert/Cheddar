@@ -34,6 +34,8 @@ export function RoverControls() {
   useEffect(() => {
     if (!isConnected || !webrtc) return
     
+    console.log('[RoverControls] Starting input manager...')
+    
     // Start input manager
     inputManager.start((state) => {
       setInputState(state)
@@ -52,7 +54,13 @@ export function RoverControls() {
     
     // Poll gamepad connection status
     const interval = setInterval(() => {
-      setGamepadConnected(inputManager.isGamepadConnected())
+      const connected = inputManager.isGamepadConnected()
+      setGamepadConnected(prevConnected => {
+        if (connected !== prevConnected) {
+          console.log('[RoverControls] Gamepad connection changed:', connected)
+        }
+        return connected
+      })
     }, 500)
     
     return () => {
