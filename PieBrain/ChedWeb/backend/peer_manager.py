@@ -3,20 +3,26 @@
 import asyncio
 import json
 import time
-from typing import Callable
+from typing import Callable, Optional
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCDataChannel
 from loguru import logger
 
 from models import ControlCommand, TelemetryData
+from camera import PiCameraVideoTrack
 
 
 class PeerManager:
     """Manages a WebRTC peer connection with DataChannel for control/telemetry."""
 
-    def __init__(self, ice_servers: list[dict[str, str | list[str]]]) -> None:
+    def __init__(
+        self,
+        ice_servers: list[dict[str, str | list[str]]],
+        video_track: Optional[PiCameraVideoTrack] = None,
+    ) -> None:
         """Initialize peer manager with ICE server configuration."""
         self.ice_servers = ice_servers
+        self.video_track = video_track
         self.pc: RTCPeerConnection | None = None
         self.control_channel: RTCDataChannel | None = None
         self.on_command_callback: Callable[[ControlCommand], None] | None = None
@@ -39,10 +45,12 @@ class PeerManager:
                 self.control_channel = channel
                 self._setup_datachannel(channel)
 
-        # TODO: Add video track handling once camera capture is implemented
-        # @self.pc.on("track")
-        # async def on_track(track):
-        #     logger.info(f"Track received: {track.kind}")
+        # Add video track if available
+        if self.video_track:
+            logger.info("Adding video track to peer connection")
+            self.pc.addTrack(self.video_track)
+        else:
+            logger.warning("No video track available - video streaming disabled")
 
         return self.pc
 

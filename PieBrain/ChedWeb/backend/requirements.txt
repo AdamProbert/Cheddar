@@ -8,6 +8,11 @@ python-dotenv>=1.0.0
 loguru>=0.7.0
 pyserial>=3.5
 
+# Camera/Video dependencies
+picamera2>=0.3.12  # Raspberry Pi camera interface
+av>=10.0.0  # PyAV for video frame handling
+numpy>=1.24.0  # Array operations for video frames
+
 # Development dependencies
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

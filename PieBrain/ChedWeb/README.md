@@ -4,12 +4,13 @@ A low-latency WebRTC-based rover control system designed for Raspberry Pi 3B. Co
 
 ## 🎯 Features
 
-- **WebRTC Video**: Ultra-low latency H.264 video streaming (ready for camera integration)
+- **WebRTC Video**: ✅ **IMPLEMENTED** - Ultra-low latency H.264 video streaming with hardware acceleration
 - **DataChannel Control**: Real-time command/telemetry via WebRTC DataChannel
 - **REST API**: Configuration and non-realtime operations
 - **Modern UI**: React + TypeScript + Tailwind + shadcn/ui
 - **Gamepad Support**: Browser Gamepad API ready (Xbox controller)
 - **Type-Safe**: Zod schemas (frontend) match Pydantic models (backend)
+- **Mock Mode**: Automatic test pattern fallback when camera unavailable
 
 ## 📁 Project Structure
 
@@ -18,6 +19,7 @@ ChedWeb/
 ├── backend/              # Python FastAPI + aiortc
 │   ├── main.py          # FastAPI application
 │   ├── peer_manager.py  # WebRTC peer connection manager
+│   ├── camera.py        # Camera video streaming (NEW)
 │   ├── models.py        # Pydantic models
 │   ├── config.py        # Settings management
 │   └── requirements.txt
@@ -29,7 +31,8 @@ ChedWeb/
 │   │   ├── App.tsx
 │   │   └── store.ts     # Zustand state management
 │   └── package.json
-└── README.md
+├── README.md
+└── CAMERA_SETUP.md      # Camera setup and testing guide (NEW)
 ```
 
 ## 🚀 Quick Start
@@ -46,8 +49,8 @@ ChedWeb/
 cd backend
 
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -81,8 +84,10 @@ The frontend will start on `http://localhost:5173` with proxy to backend.
 1. Open browser to `http://localhost:5173`
 2. Click **Connect** button
 3. WebRTC connection establishes with DataChannel
-4. Video feed placeholder displays (ready for camera integration)
+4. **Live video feed displays** (real camera or test pattern)
 5. Telemetry updates in real-time
+
+> 📹 **Note**: If running without a Raspberry Pi camera, the system will automatically display a color bar test pattern. See `CAMERA_SETUP.md` for camera configuration and testing details.
 
 ## 🔌 API Endpoints
 
@@ -157,21 +162,21 @@ npm run build
 
 ## 📋 Next Steps & TODOs
 
-### 1. Camera Integration (H.264 Video Track)
+### ~~1. Camera Integration (H.264 Video Track)~~ ✅ COMPLETED
 
-The video track is **not yet implemented**. To add it:
+**Status**: ✅ **Video streaming is now fully implemented!**
 
-**Backend (`peer_manager.py`):**
+The camera module has been integrated with the following features:
+- Hardware-accelerated H.264 encoding via picamera2
+- Configurable resolution, framerate, and rotation
+- Automatic fallback to mock test pattern when camera unavailable
+- WebRTC video track seamlessly integrated into peer connections
 
-- Add `libcamera` or `picamera2` for camera capture
-- Use `aiortc.VideoStreamTrack` to create H.264 stream
-- Add track to peer connection: `pc.addTrack(video_track)`
-- Consider using hardware encoding on Pi 3B
-
-**Resources:**
-
-- [aiortc VideoStreamTrack docs](https://aiortc.readthedocs.io/en/latest/api.html#videostreamtrack)
-- [picamera2 examples](https://github.com/raspberrypi/picamera2)
+**See `CAMERA_SETUP.md` for:**
+- Installation instructions
+- Configuration options
+- Testing procedures
+- Troubleshooting guide
 
 ### 2. UART/Serial Bridge to ESP32
 
@@ -232,6 +237,7 @@ Currently stubbed. To forward commands:
 - [ ] Multi-client support (observer mode)
 - [ ] HTTPS/WSS for production
 - [ ] Authentication and authorization
+- [x] **Camera integration with H.264 hardware encoding**
 
 ## 🔧 Configuration
 
@@ -246,6 +252,13 @@ DEBUG=true
 # WebRTC
 STUN_SERVER=stun:stun.l.google.com:19302
 # TURN_SERVER=turn:turn.example.com:3478
+
+# Camera (NEW)
+CAMERA_ENABLED=true
+CAMERA_WIDTH=640
+CAMERA_HEIGHT=480
+CAMERA_FRAMERATE=30
+CAMERA_ROTATION=0
 
 # Serial (for ESP32)
 SERIAL_PORT=/dev/ttyUSB0
@@ -329,4 +342,6 @@ Contributions welcome! Please open issues/PRs.
 
 ---
 
-**Current Status**: ✅ Scaffold complete, ready for camera and UART integration.
+**Current Status**: ✅ **Video streaming implemented!** Camera integration complete with hardware encoding. Ready for UART/ESP32 integration and gamepad controls.
+
+See `CAMERA_SETUP.md` for detailed setup, testing, and troubleshooting of the video streaming feature.

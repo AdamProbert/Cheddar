@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     serial_baudrate: int = 115200
     serial_timeout: float = 1.0
 
+    # Camera settings
+    camera_enabled: bool = True
+    camera_width: int = 640
+    camera_height: int = 480
+    camera_framerate: int = 30
+    camera_rotation: int = 0  # 0, 90, 180, or 270 degrees
+
     # Safety (placeholders)
     deadman_timeout_ms: int = 500
     command_rate_limit_hz: int = 50

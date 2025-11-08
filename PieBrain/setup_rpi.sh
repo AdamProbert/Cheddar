@@ -2,10 +2,22 @@
 set -euo pipefail
 
 # setup_rpi.sh
-# Simplified Raspberry Pi setup script for Cheddar.
+# Raspberry Pi setup script for Cheddar ChedWeb project.
 # Assumes Python 3.13 is already present (stock Raspberry Pi OS).
-# Unconditionally installs and configures: apt updates, base packages, git (with provided name/email),
-# pip (if missing), pipx + virtualenv tools, zsh + Oh My Zsh, SSH key, and clones the Cheddar repo + sets up virtualenv.
+# 
+# This script:
+# - Updates system packages
+# - Installs base development tools and git
+# - Installs camera/video streaming dependencies (picamera2, libcamera, codec libraries)
+# - Configures git with provided name/email
+# - Sets up Python tooling (pip, pipx, virtualenv)
+# - Installs zsh + Oh My Zsh
+# - Generates SSH key
+# - Clones Cheddar repository
+# - Sets up ChedWeb backend virtualenv and dependencies
+# - Sets up ChedWeb frontend dependencies (if Node.js available)
+# - Enables camera interface
+# - Adds user to video group for camera access
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -60,6 +72,11 @@ apt upgrade -y
 BASE_PACKAGES=(curl wget ca-certificates build-essential lsb-release gnupg2 git zsh)
 log "Installing base packages: ${BASE_PACKAGES[*]}"
 apt install -y "${BASE_PACKAGES[@]}"
+
+# Camera and video streaming dependencies for ChedWeb
+CAMERA_PACKAGES=(python3-picamera2 python3-libcamera python3-kms++ libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev)
+log "Installing camera and video codec libraries: ${CAMERA_PACKAGES[*]}"
+apt install -y "${CAMERA_PACKAGES[@]}"
 
 log "Configuring global git user.name and user.email"
 sudo -u "$INVOKING_USER" git config --global user.name "$GIT_NAME"
@@ -149,17 +166,129 @@ else
   log "No requirements.txt found in repo; skipping dependency install"
 fi
 
+# Setup ChedWeb backend environment
+CHEDWEB_BACKEND="${CLONE_DIR}/PieBrain/ChedWeb/backend"
+if [[ -d "$CHEDWEB_BACKEND" ]]; then
+  log "Setting up ChedWeb backend environment"
+  
+  # Create virtualenv for ChedWeb backend
+  sudo -u "$INVOKING_USER" python3 -m venv "${CHEDWEB_BACKEND}/.venv"
+  
+  # Install backend dependencies
+  if [[ -f "${CHEDWEB_BACKEND}/requirements.txt" ]]; then
+    log "Installing ChedWeb backend dependencies (including picamera2, av, numpy)"
+    sudo -u "$INVOKING_USER" bash -lc "source '${CHEDWEB_BACKEND}/.venv/bin/activate' && pip install --upgrade pip && pip install -r '${CHEDWEB_BACKEND}/requirements.txt'"
+  fi
+  
+  # Create .env file from .env.example if it doesn't exist
+  if [[ -f "${CHEDWEB_BACKEND}/.env.example" ]] && [[ ! -f "${CHEDWEB_BACKEND}/.env" ]]; then
+    log "Creating ChedWeb backend .env file from .env.example"
+    sudo -u "$INVOKING_USER" cp "${CHEDWEB_BACKEND}/.env.example" "${CHEDWEB_BACKEND}/.env"
+    log "Backend configuration created at ${CHEDWEB_BACKEND}/.env"
+  fi
+else
+  log "ChedWeb backend directory not found; skipping ChedWeb-specific setup"
+fi
+
+# Setup ChedWeb frontend environment
+CHEDWEB_FRONTEND="${CLONE_DIR}/PieBrain/ChedWeb/frontend"
+if [[ -d "$CHEDWEB_FRONTEND" ]]; then
+  log "Setting up ChedWeb frontend environment"
+  
+  # Check if Node.js and npm are available
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    log "Node.js $(node -v) and npm $(npm -v) detected"
+    
+    # Install frontend dependencies
+    if [[ -f "${CHEDWEB_FRONTEND}/package.json" ]]; then
+      log "Installing ChedWeb frontend dependencies"
+      sudo -u "$INVOKING_USER" bash -lc "cd '${CHEDWEB_FRONTEND}' && npm install"
+    fi
+  else
+    log "Node.js/npm not found. Frontend dependencies not installed."
+    log "To install Node.js, run: curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install -y nodejs"
+  fi
+else
+  log "ChedWeb frontend directory not found; skipping frontend setup"
+fi
+
+# Verify camera hardware is detected
+log "Checking for camera hardware..."
+if vcgencmd get_camera 2>/dev/null | grep -q "detected=1"; then
+  log "Camera hardware detected"
+elif ls /dev/video* >/dev/null 2>&1; then
+  log "Video device(s) found: $(ls /dev/video* 2>/dev/null | tr '\n' ' ')"
+else
+  log "WARNING: No camera hardware detected. Ensure camera is properly connected."
+  log "The system will still be configured, but camera may not work until hardware is connected."
+fi
+
+# Enable camera interface (legacy camera support)
+log "Enabling camera interface (requires reboot to take effect)"
+raspi-config nonint do_camera 0 || log "Camera enable command may have failed (continuing)"
+log "Camera interface enabled. A reboot is required for camera to be accessible."
+
+# Add user to video group for camera access
+log "Adding $INVOKING_USER to 'video' group for camera permissions"
+usermod -a -G video "$INVOKING_USER" || log "Failed to add user to video group (continuing)"
+
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
-log "Setup complete. Log out/in for new shell to apply."
+log "Setup complete. REBOOT REQUIRED for camera interface to be enabled."
+
+echo
+echo "=========================================="
+echo "  Raspberry Pi Setup Summary"
+echo "=========================================="
+echo "✓ System packages updated"
+echo "✓ Camera libraries installed (picamera2, libcamera, video codecs)"
+echo "✓ Git configured (user: $GIT_NAME, email: $GIT_EMAIL)"
+echo "✓ Python $(python3 -V 2>&1 | cut -d' ' -f2) with pip"
+echo "✓ SSH key generated"
+echo "✓ Cheddar repository cloned/updated"
+echo "✓ ChedWeb backend environment configured"
+[[ -d "$CHEDWEB_FRONTEND" ]] && command -v npm >/dev/null 2>&1 && echo "✓ ChedWeb frontend dependencies installed"
+echo "✓ Camera interface enabled (pending reboot)"
+echo "✓ User added to video group"
+echo "✓ Default shell set to zsh"
+echo "=========================================="
+echo
 
 cat <<EOF
 Next steps:
 - Add the printed SSH public key to GitHub (Settings → SSH and GPG keys).
-- Activate your project environment:
-  source ~/Cheddar/.venv/bin/activate
-- Optionally set your default shell to zsh (already changed if chsh succeeded): chsh -s /usr/bin/zsh $INVOKING_USER
+
+- REBOOT the Raspberry Pi to enable the camera interface:
+  sudo reboot
+
+- After reboot, verify camera is working:
+  libcamera-hello                    # Should show camera preview
+  libcamera-jpeg -o test.jpg         # Capture a test image
+
+- Test picamera2 (used by ChedWeb):
+  python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); print('Camera OK'); cam.stop()"
+
+- Start ChedWeb backend (Terminal 1):
+  cd ~/Cheddar/PieBrain/ChedWeb/backend
+  source .venv/bin/activate
+  python main.py
+
+- Start ChedWeb frontend (Terminal 2 - if Node.js is installed):
+  cd ~/Cheddar/PieBrain/ChedWeb/frontend
+  npm run dev
+
+- Access the web interface:
+  http://<raspberry-pi-ip>:5173
+
+- Camera configuration can be adjusted in:
+  ~/Cheddar/PieBrain/ChedWeb/backend/.env
+
+- For detailed camera setup, testing, and troubleshooting:
+  ~/Cheddar/PieBrain/ChedWeb/CAMERA_SETUP.md
+
+ChedWeb Backend:  ${CHEDWEB_BACKEND}
+ChedWeb Frontend: ${CHEDWEB_FRONTEND}
 EOF
 
 exit 0

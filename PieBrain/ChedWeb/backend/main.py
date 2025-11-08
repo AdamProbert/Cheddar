@@ -11,6 +11,7 @@ from loguru import logger
 from config import settings
 from models import SDPOffer, SDPAnswer, HealthResponse, ControlCommand, ErrorResponse
 from peer_manager import PeerManager
+from camera import CameraManager
 
 
 # Configure structured logging
@@ -23,15 +24,26 @@ logger.add(
 
 # Global peer manager instance
 peer_manager: PeerManager | None = None
+camera_manager: CameraManager | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
-    global peer_manager
+    global peer_manager, camera_manager
     logger.info("Starting ChedWeb backend...")
     logger.info(f"Debug mode: {settings.debug}")
     logger.info(f"ICE servers: {settings.ice_servers}")
+    logger.info(f"Camera enabled: {settings.camera_enabled}")
+
+    # Initialize camera manager
+    camera_manager = CameraManager(
+        width=settings.camera_width,
+        height=settings.camera_height,
+        framerate=settings.camera_framerate,
+        rotation=settings.camera_rotation,
+        enabled=settings.camera_enabled,
+    )
 
     # Initialize peer manager
     peer_manager = PeerManager(ice_servers=settings.ice_servers)
@@ -47,6 +59,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Shutting down ChedWeb backend...")
     if peer_manager:
         await peer_manager.close()
+    if camera_manager:
+        camera_manager.cleanup()
     # if serial_bridge:
     #     await serial_bridge.disconnect()
 
@@ -86,9 +100,23 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
     """
     if not peer_manager:
         raise HTTPException(status_code=500, detail="Peer manager not initialized")
+    
+    if not camera_manager:
+        raise HTTPException(status_code=500, detail="Camera manager not initialized")
 
     try:
         logger.info("Received SDP offer from client")
+        
+        # Create a new video track for this connection
+        video_track = camera_manager.create_video_track()
+        if video_track:
+            logger.info("Video track created successfully")
+        else:
+            logger.warning("No video track created - camera may be disabled")
+        
+        # Update peer manager with the video track
+        peer_manager.video_track = video_track
+        
         answer_sdp = await peer_manager.handle_offer(offer.sdp)
         logger.info("Returning SDP answer to client")
         return SDPAnswer(sdp=answer_sdp, type="answer")
