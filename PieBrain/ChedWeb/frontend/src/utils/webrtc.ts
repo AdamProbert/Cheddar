@@ -2,8 +2,8 @@
  * WebRTC peer connection and DataChannel management
  */
 import axios from 'axios'
-import type { SDPOffer, SDPAnswer, ControlCommand, TelemetryData } from '../types/schemas'
-import { TelemetryDataSchema } from '../types/schemas'
+import type { SDPOffer, SDPAnswer, ControlCommand, TelemetryData, SystemMetrics } from '../types/schemas'
+import { TelemetryDataSchema, SystemMetricsSchema } from '../types/schemas'
 
 // Use relative URL to go through Vite proxy in dev, or same origin in production
 const API_BASE = ''
@@ -11,6 +11,7 @@ const API_BASE = ''
 export interface WebRTCCallbacks {
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void
   onTelemetry?: (data: TelemetryData) => void
+  onSystemMetrics?: (data: SystemMetrics) => void
   onTrack?: (track: MediaStreamTrack) => void
 }
 
@@ -87,10 +88,19 @@ export class WebRTCManager {
     this.dataChannel.onmessage = event => {
       try {
         const data = JSON.parse(event.data)
+        
+        // Try to parse as system metrics first
+        const metricsResult = SystemMetricsSchema.safeParse(data)
+        if (metricsResult.success) {
+          this.callbacks.onSystemMetrics?.(metricsResult.data)
+          return
+        }
+
+        // Otherwise parse as telemetry
         const telemetry = TelemetryDataSchema.parse(data)
         this.callbacks.onTelemetry?.(telemetry)
       } catch (error) {
-        console.error('Failed to parse telemetry data:', error)
+        console.error('Failed to parse DataChannel message:', error)
       }
     }
 

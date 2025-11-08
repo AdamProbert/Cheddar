@@ -4,6 +4,7 @@
 import { ConnectionControls } from './components/ConnectionControls'
 import { VideoFeed } from './components/VideoFeed'
 import { TelemetryCard } from './components/TelemetryCard'
+import { SystemMetricsCard } from './components/SystemMetricsCard'
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           {/* Sidebar - telemetry and controls */}
           <div className="space-y-6">
             <TelemetryCard />
+            <SystemMetricsCard />
 
             {/* TODO: Add gamepad status card */}
             {/* TODO: Add manual control buttons as fallback */}

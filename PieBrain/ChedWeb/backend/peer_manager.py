@@ -5,10 +5,11 @@ import json
 import time
 from typing import Callable, Optional
 
+import psutil
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCDataChannel
 from loguru import logger
 
-from models import ControlCommand, TelemetryData
+from models import ControlCommand, TelemetryData, SystemMetrics
 from camera import PiCameraVideoTrack
 
 
@@ -26,6 +27,7 @@ class PeerManager:
         self.pc: RTCPeerConnection | None = None
         self.control_channel: RTCDataChannel | None = None
         self.on_command_callback: Callable[[ControlCommand], None] | None = None
+        self.metrics_task: asyncio.Task | None = None
 
     def _setup_datachannel(self, channel: RTCDataChannel) -> None:
         """Set up message handlers for the control DataChannel."""
@@ -44,6 +46,8 @@ class PeerManager:
                     signal_strength=None,
                 )
             )
+            # Start system metrics loop
+            asyncio.create_task(self._start_metrics_loop())
 
         @channel.on("message")
         def on_message(message: str) -> None:
@@ -98,6 +102,56 @@ class PeerManager:
         except Exception as e:
             logger.error(f"Failed to send telemetry: {e}")
 
+    def _send_metrics(self, metrics: SystemMetrics) -> None:
+        """Send system metrics data to client."""
+        if not self.control_channel or self.control_channel.readyState != "open":
+            return
+
+        try:
+            self.control_channel.send(metrics.model_dump_json())
+        except Exception as e:
+            logger.error(f"Failed to send metrics: {e}")
+
+    def _collect_system_metrics(self) -> SystemMetrics:
+        """Collect current system metrics using psutil."""
+        # Get CPU temperature (Raspberry Pi specific)
+        cpu_temp = None
+        try:
+            temps = psutil.sensors_temperatures()
+            if temps and 'cpu_thermal' in temps:
+                cpu_temp = temps['cpu_thermal'][0].current
+        except Exception as e:
+            logger.debug(f"Could not read CPU temperature: {e}")
+
+        # Get disk usage for root partition
+        disk_percent = None
+        try:
+            disk_percent = psutil.disk_usage('/').percent
+        except Exception as e:
+            logger.debug(f"Could not read disk usage: {e}")
+
+        return SystemMetrics(
+            type="metrics",
+            cpu_percent=psutil.cpu_percent(interval=0.1),
+            memory_percent=psutil.virtual_memory().percent,
+            cpu_temp=cpu_temp,
+            disk_percent=disk_percent,
+            timestamp=time.time() * 1000,
+        )
+
+    async def _start_metrics_loop(self, interval_seconds: float = 1.0) -> None:
+        """Send system metrics at regular intervals via DataChannel."""
+        logger.info(f"Starting system metrics loop (interval={interval_seconds}s)")
+        try:
+            while self.control_channel and self.control_channel.readyState == "open":
+                metrics = self._collect_system_metrics()
+                self._send_metrics(metrics)
+                await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            logger.info("Metrics loop cancelled")
+        except Exception as e:
+            logger.error(f"Error in metrics loop: {e}")
+
     async def handle_offer(self, offer_sdp: str) -> str:
         """Handle SDP offer and return SDP answer."""
         if not self.pc:
@@ -137,6 +191,13 @@ class PeerManager:
 
     async def close(self) -> None:
         """Close the peer connection and clean up resources."""
+        if self.metrics_task and not self.metrics_task.done():
+            self.metrics_task.cancel()
+            try:
+                await self.metrics_task
+            except asyncio.CancelledError:
+                pass
+
         if self.control_channel:
             self.control_channel.close()
             self.control_channel = None

@@ -38,6 +38,15 @@ export const TelemetryDataSchema = z.object({
   latency_ms: z.number().optional(),
 })
 
+export const SystemMetricsSchema = z.object({
+  type: z.literal('metrics'),
+  cpu_percent: z.number(),
+  memory_percent: z.number(),
+  cpu_temp: z.number().optional(),
+  disk_percent: z.number().optional(),
+  timestamp: z.number(),
+})
+
 export const ConfigResponseSchema = z.object({
   version: z.string(),
   stun_server: z.string(),
@@ -51,4 +60,5 @@ export type SDPAnswer = z.infer<typeof SDPAnswerSchema>
 export type HealthResponse = z.infer<typeof HealthResponseSchema>
 export type ControlCommand = z.infer<typeof ControlCommandSchema>
 export type TelemetryData = z.infer<typeof TelemetryDataSchema>
+export type SystemMetrics = z.infer<typeof SystemMetricsSchema>
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>

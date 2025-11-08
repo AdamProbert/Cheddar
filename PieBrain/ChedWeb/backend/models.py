@@ -51,6 +51,17 @@ class TelemetryData(BaseModel):
     latency_ms: float | None = Field(None, description="Round-trip latency if pong")
 
 
+class SystemMetrics(BaseModel):
+    """System metrics data sent via DataChannel."""
+
+    type: Literal["metrics"] = Field(default="metrics", description="Message type")
+    cpu_percent: float = Field(..., description="CPU usage percentage")
+    memory_percent: float = Field(..., description="Memory usage percentage")
+    cpu_temp: float | None = Field(None, description="CPU temperature in Celsius")
+    disk_percent: float | None = Field(None, description="Disk usage percentage")
+    timestamp: float = Field(..., description="Server timestamp in milliseconds")
+
+
 class ErrorResponse(BaseModel):
     """Standard error response."""
 

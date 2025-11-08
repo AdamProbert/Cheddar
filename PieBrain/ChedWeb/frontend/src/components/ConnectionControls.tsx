@@ -14,6 +14,7 @@ export function ConnectionControls() {
   const connectionState = useAppStore(state => state.connectionState)
   const setConnectionState = useAppStore(state => state.setConnectionState)
   const updateTelemetry = useAppStore(state => state.updateTelemetry)
+  const updateSystemMetrics = useAppStore(state => state.updateSystemMetrics)
   const setVideoStream = useAppStore(state => state.setVideoStream)
 
   const handleConnect = async () => {
@@ -33,6 +34,9 @@ export function ConnectionControls() {
         },
         onTelemetry: data => {
           updateTelemetry(data)
+        },
+        onSystemMetrics: data => {
+          updateSystemMetrics(data)
         },
         onTrack: track => {
           // Create MediaStream from track
