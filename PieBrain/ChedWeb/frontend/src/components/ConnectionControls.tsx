@@ -14,7 +14,6 @@ export function ConnectionControls() {
   const [isConnecting, setIsConnecting] = useState(false)
   const connectionState = useAppStore(state => state.connectionState)
   const setConnectionState = useAppStore(state => state.setConnectionState)
-  const updateTelemetry = useAppStore(state => state.updateTelemetry)
   const updateSystemMetrics = useAppStore(state => state.updateSystemMetrics)
   const setVideoStream = useAppStore(state => state.setVideoStream)
   const setCameraSettings = useAppStore(state => state.setCameraSettings)
@@ -45,9 +44,6 @@ export function ConnectionControls() {
           } else if (state === 'failed' || state === 'closed') {
             setConnectionState('disconnected')
           }
-        },
-        onTelemetry: data => {
-          updateTelemetry(data)
         },
         onSystemMetrics: data => {
           updateSystemMetrics(data)

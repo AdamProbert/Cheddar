@@ -3,7 +3,7 @@
  */
 import { ConnectionControls } from './components/ConnectionControls'
 import { VideoFeed } from './components/VideoFeed'
-import { TelemetryCard } from './components/TelemetryCard'
+// TelemetryCard removed
 import { SystemMetricsCard } from './components/SystemMetricsCard'
 import { CameraControls } from './components/CameraControls'
 
@@ -35,11 +35,8 @@ function App() {
             <VideoFeed />
           </div>
 
-          {/* Sidebar - telemetry and controls */}
+          {/* Sidebar - controls */}
           <div className="space-y-6">
-            <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
-              <TelemetryCard />
-            </div>
             <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
               <SystemMetricsCard />
             </div>

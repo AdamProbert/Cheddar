@@ -2,7 +2,7 @@
  * Zustand store for application state management
  */
 import { create } from 'zustand'
-import type { TelemetryData, ConfigResponse, SystemMetrics, CameraSettings } from './types/schemas'
+import type { ConfigResponse, SystemMetrics, CameraSettings } from './types/schemas'
 
 export type ConnectionState =
   | 'disconnected'
@@ -27,12 +27,6 @@ interface AppState {
   // Connection
   connectionState: ConnectionState
   setConnectionState: (state: ConnectionState) => void
-
-  // Telemetry
-  telemetry: TelemetryData | null
-  updateTelemetry: (data: TelemetryData) => void
-  latency: number | null
-  setLatency: (latency: number) => void
 
   // System Metrics
   systemMetrics: SystemMetrics | null
@@ -60,19 +54,6 @@ export const useAppStore = create<AppState>(set => ({
   // Connection
   connectionState: 'disconnected',
   setConnectionState: state => set({ connectionState: state }),
-
-  // Telemetry
-  telemetry: null,
-  updateTelemetry: data =>
-    set(_state => {
-      // Calculate latency if this is a pong response
-      if (data.type === 'pong' && data.latency_ms !== undefined) {
-        return { telemetry: data, latency: data.latency_ms }
-      }
-      return { telemetry: data }
-    }),
-  latency: null,
-  setLatency: latency => set({ latency }),
 
   // System Metrics
   systemMetrics: null,
