@@ -8,8 +8,6 @@ import { WebRTCManager } from '@/utils/webrtc'
 import { Wifi, WifiOff, Loader2 } from 'lucide-react'
 import { CameraSettingsSchema } from '@/types/schemas'
 
-let webrtcManager: WebRTCManager | null = null
-
 export function ConnectionControls() {
   const [isConnecting, setIsConnecting] = useState(false)
   const connectionState = useAppStore(state => state.connectionState)
@@ -17,6 +15,8 @@ export function ConnectionControls() {
   const updateSystemMetrics = useAppStore(state => state.updateSystemMetrics)
   const setVideoStream = useAppStore(state => state.setVideoStream)
   const setCameraSettings = useAppStore(state => state.setCameraSettings)
+  const webrtc = useAppStore(state => state.webrtc)
+  const setWebRTC = useAppStore(state => state.setWebRTC)
 
   const handleConnect = async () => {
     try {
@@ -36,7 +36,7 @@ export function ConnectionControls() {
       }
 
       // Create WebRTC manager
-      webrtcManager = new WebRTCManager({
+      const manager = new WebRTCManager({
         onConnectionStateChange: state => {
           console.log('Connection state changed:', state)
           if (state === 'connected') {
@@ -55,7 +55,8 @@ export function ConnectionControls() {
         },
       })
 
-      await webrtcManager.connect()
+      await manager.connect()
+      setWebRTC(manager) // Store in global state
     } catch (error) {
       console.error('Connection failed:', error)
       setConnectionState('failed')
@@ -65,9 +66,9 @@ export function ConnectionControls() {
   }
 
   const handleDisconnect = async () => {
-    if (webrtcManager) {
-      await webrtcManager.disconnect()
-      webrtcManager = null
+    if (webrtc) {
+      await webrtc.disconnect()
+      setWebRTC(null)
     }
     setVideoStream(null)
     setConnectionState('disconnected')

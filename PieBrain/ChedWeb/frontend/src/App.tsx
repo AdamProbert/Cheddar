@@ -3,9 +3,9 @@
  */
 import { ConnectionControls } from './components/ConnectionControls'
 import { VideoFeed } from './components/VideoFeed'
-// TelemetryCard removed
 import { SystemMetricsCard } from './components/SystemMetricsCard'
 import { CameraControls } from './components/CameraControls'
+import { RoverControls } from './components/RoverControls'
 
 function App() {
   return (
@@ -38,14 +38,14 @@ function App() {
           {/* Sidebar - controls */}
           <div className="space-y-6">
             <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
-              <SystemMetricsCard />
+              <RoverControls />
             </div>
             <div className="animate-slide-in" style={{ animationDelay: '0.3s' }}>
+              <SystemMetricsCard />
+            </div>
+            <div className="animate-slide-in" style={{ animationDelay: '0.4s' }}>
               <CameraControls />
             </div>
-
-            {/* TODO: Add gamepad status card */}
-            {/* TODO: Add manual control buttons as fallback */}
           </div>
         </div>
       </main>

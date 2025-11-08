@@ -23,6 +23,7 @@ from models import (
 )
 from peer_manager import PeerManager
 from camera import CameraManager
+from motion_driver_bridge import MotionDriverBridge, MockMotionDriverBridge
 
 
 # Configure structured logging
@@ -36,16 +37,19 @@ logger.add(
 # Global manager instances
 peer_manager: PeerManager | None = None
 camera_manager: CameraManager | None = None
+motion_driver: MotionDriverBridge | MockMotionDriverBridge | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
-    global peer_manager, camera_manager
+    global peer_manager, camera_manager, motion_driver
     logger.info("Starting ChedWeb backend...")
     logger.info(f"Debug mode: {settings.debug}")
     logger.info(f"ICE servers: {settings.ice_servers}")
     logger.info(f"Camera enabled: {settings.camera_enabled}")
+    logger.info(f"Serial port: {settings.serial_port}")
+    logger.info(f"Serial mock mode: {settings.serial_mock}")
 
     # Initialize camera manager
     camera_manager = CameraManager(
@@ -59,13 +63,32 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         color_gains=(2.0, 1.2),  # Higher red gain to reduce purple tint on NoIR
     )
 
-    # Initialize peer manager
-    peer_manager = PeerManager(ice_servers=settings.ice_servers)
+    # Initialize MotionDriver serial bridge
+    if settings.serial_mock:
+        logger.info("Using MOCK MotionDriver bridge (no hardware)")
+        motion_driver = MockMotionDriverBridge(
+            port=settings.serial_port,
+            baudrate=settings.serial_baudrate,
+        )
+    else:
+        logger.info(f"Initializing MotionDriver on {settings.serial_port}")
+        motion_driver = MotionDriverBridge(
+            port=settings.serial_port,
+            baudrate=settings.serial_baudrate,
+        )
 
-    # TODO: Initialize serial bridge for UART communication
-    # serial_bridge = SerialBridge(settings.serial_port, settings.serial_baudrate)
-    # await serial_bridge.connect()
-    # peer_manager.set_command_callback(serial_bridge.send_command)
+    try:
+        await motion_driver.connect()
+    except Exception as e:
+        logger.error(f"Failed to connect to MotionDriver: {e}")
+        logger.warning("Continuing without MotionDriver - commands will be ignored")
+        motion_driver = None
+
+    # Initialize peer manager with motion driver
+    peer_manager = PeerManager(
+        ice_servers=settings.ice_servers,
+        motion_driver=motion_driver,
+    )
 
     yield
 
@@ -75,8 +98,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await peer_manager.close()
     if camera_manager:
         camera_manager.cleanup()
-    # if serial_bridge:
-    #     await serial_bridge.disconnect()
+    if motion_driver:
+        await motion_driver.disconnect()
 
 
 # Create FastAPI application

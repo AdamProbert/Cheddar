@@ -29,13 +29,51 @@ class HealthResponse(BaseModel):
 
 
 class ControlCommand(BaseModel):
-    """Robot control command sent via DataChannel."""
+    """Robot control command sent via DataChannel.
 
-    type: Literal["motor", "servo", "ping", "stop"] = Field(..., description="Command type")
-    motor_left: float | None = Field(None, ge=-1.0, le=1.0, description="Left motor speed")
-    motor_right: float | None = Field(None, ge=-1.0, le=1.0, description="Right motor speed")
-    servo_pan: int | None = Field(None, ge=0, le=180, description="Pan servo angle")
-    servo_tilt: int | None = Field(None, ge=0, le=180, description="Tilt servo angle")
+    The rover has 6 independently driven and steered wheels:
+    - Each wheel has a drive motor (speed control)
+    - Each wheel has a steering servo (angle control)
+
+    Wheel indexing (left to right, front to back):
+    - 0: Front Left    - 1: Front Right
+    - 2: Middle Left   - 3: Middle Right
+    - 4: Rear Left     - 5: Rear Right
+
+    Motors: Speed values range from -1.0 (full reverse) to 1.0 (full forward)
+    Servos: Angle values range from 0-180 degrees (90 = straight ahead)
+    """
+
+    type: Literal["motor", "servo", "ping", "stop", "estop"] = Field(
+        ..., description="Command type"
+    )
+
+    # 6-wheel drive motors
+    motors: list[float] | None = Field(
+        None,
+        min_length=6,
+        max_length=6,
+        description="Array of 6 wheel motor speeds [-1.0 to 1.0], indexed 0-5",
+    )
+
+    # 6-wheel steering servos
+    servos: list[int] | None = Field(
+        None,
+        min_length=6,
+        max_length=6,
+        description="Array of 6 wheel steering angles [0-180], indexed 0-5 (90=straight)",
+    )
+
+    # Legacy simple control (deprecated, kept for backwards compatibility)
+    motor_left: float | None = Field(
+        None, ge=-1.0, le=1.0, description="Deprecated: use motors array"
+    )
+    motor_right: float | None = Field(
+        None, ge=-1.0, le=1.0, description="Deprecated: use motors array"
+    )
+    servo_pan: int | None = Field(None, ge=0, le=180, description="Deprecated: use servos array")
+    servo_tilt: int | None = Field(None, ge=0, le=180, description="Deprecated: use servos array")
+
     timestamp: float = Field(..., description="Client timestamp in milliseconds")
 
 

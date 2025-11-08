@@ -3,6 +3,7 @@
  */
 import { create } from 'zustand'
 import type { ConfigResponse, SystemMetrics, CameraSettings } from './types/schemas'
+import { WebRTCManager } from './utils/webrtc'
 
 export type ConnectionState =
   | 'disconnected'
@@ -27,6 +28,10 @@ interface AppState {
   // Connection
   connectionState: ConnectionState
   setConnectionState: (state: ConnectionState) => void
+
+  // WebRTC Manager
+  webrtc: WebRTCManager | null
+  setWebRTC: (manager: WebRTCManager | null) => void
 
   // System Metrics
   systemMetrics: SystemMetrics | null
@@ -54,6 +59,10 @@ export const useAppStore = create<AppState>(set => ({
   // Connection
   connectionState: 'disconnected',
   setConnectionState: state => set({ connectionState: state }),
+
+  // WebRTC Manager
+  webrtc: null,
+  setWebRTC: manager => set({ webrtc: manager }),
 
   // System Metrics
   systemMetrics: null,

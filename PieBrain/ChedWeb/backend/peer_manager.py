@@ -11,6 +11,7 @@ from loguru import logger
 
 from models import ControlCommand, TelemetryData, SystemMetrics
 from camera import PiCameraVideoTrack
+from motion_driver_bridge import MotionDriverBridge
 
 
 class PeerManager:
@@ -20,10 +21,12 @@ class PeerManager:
         self,
         ice_servers: list[dict[str, str | list[str]]],
         video_track: Optional[PiCameraVideoTrack] = None,
+        motion_driver: Optional[MotionDriverBridge] = None,
     ) -> None:
         """Initialize peer manager with ICE server configuration."""
         self.ice_servers = ice_servers
         self.video_track = video_track
+        self.motion_driver = motion_driver
         self.pc: RTCPeerConnection | None = None
         self.control_channel: RTCDataChannel | None = None
         self.on_command_callback: Callable[[ControlCommand], None] | None = None
@@ -68,7 +71,14 @@ class PeerManager:
                 command = ControlCommand(**data)
                 logger.info(f"Control command: {command}")
 
-                # TODO: Forward command to UART/ESP32 serial bridge
+                # Forward command to MotionDriver via serial bridge
+                if self.motion_driver:
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(self.motion_driver.send_command(command))
+                else:
+                    logger.warning("No motion driver connected - command ignored")
+
+                # Also trigger callback if set (for future extensions)
                 if self.on_command_callback:
                     self.on_command_callback(command)
 

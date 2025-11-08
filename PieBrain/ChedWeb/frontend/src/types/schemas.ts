@@ -20,7 +20,12 @@ export const HealthResponseSchema = z.object({
 })
 
 export const ControlCommandSchema = z.object({
-  type: z.enum(['motor', 'servo', 'ping', 'stop']),
+  type: z.enum(['motor', 'servo', 'ping', 'stop', 'estop']),
+  // 6-wheel drive control (preferred)
+  motors: z.array(z.number().min(-1).max(1)).length(6).optional(),
+  // 6-wheel steering control (preferred) - 90 degrees = straight ahead
+  servos: z.array(z.number().int().min(0).max(180)).length(6).optional(),
+  // Legacy simple control (deprecated)
   motor_left: z.number().min(-1).max(1).optional(),
   motor_right: z.number().min(-1).max(1).optional(),
   servo_pan: z.number().int().min(0).max(180).optional(),

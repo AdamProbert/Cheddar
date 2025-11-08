@@ -20,10 +20,11 @@ class Settings(BaseSettings):
     turn_username: str | None = None
     turn_password: str | None = None
 
-    # Serial/UART (for future ESP32 communication)
+    # Serial/UART (for ESP32 MotionDriver communication)
     serial_port: str = "/dev/ttyUSB0"
     serial_baudrate: int = 115200
     serial_timeout: float = 1.0
+    serial_mock: bool = False  # Use mock bridge for testing without hardware
 
     # Camera settings
     camera_enabled: bool = True
