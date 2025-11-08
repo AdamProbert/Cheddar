@@ -82,6 +82,11 @@ class PeerManager:
             logger.info(f"DataChannel '{channel.label}' closed")
             # TODO: Implement deadman switch - stop all motors on disconnect
 
+        # Check if channel is already open and start metrics immediately
+        if channel.readyState == "open":
+            logger.info(f"DataChannel '{channel.label}' already open, starting metrics immediately")
+            on_open()
+
     def _send_pong(self, client_timestamp: float) -> None:
         """Send pong response for latency measurement."""
         if not self.control_channel or self.control_channel.readyState != "open":
