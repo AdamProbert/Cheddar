@@ -48,19 +48,24 @@ If you prefer to set up manually or need to troubleshoot:
    # Install camera libraries
    sudo apt install -y python3-picamera2 python3-libcamera python3-kms++
    
-   # Install video codec libraries
-   sudo apt install -y libavformat-dev libavcodec-dev libavdevice-dev \
+   # Install video codec libraries and build dependencies
+   sudo apt install -y libcap-dev libavformat-dev libavcodec-dev libavdevice-dev \
                         libavutil-dev libswscale-dev libswresample-dev libavfilter-dev
    ```
 
-2. **Enable Camera Interface**
+2. **Enable Camera Interface** (if needed)
+
+   Modern Raspberry Pi OS has the camera enabled by default. You can verify with:
 
    ```bash
-   # Enable legacy camera support if needed
+   # Check if camera is detected
+   rpicam-hello --version
+   ```
+
+   If the camera is not working, you may need to enable it manually:
+
+   ```bash
    sudo raspi-config
-   # Navigate to: Interface Options -> Legacy Camera -> Enable
-   
-   # Or for libcamera (recommended)
    # Navigate to: Interface Options -> Camera -> Enable
    
    # Reboot
@@ -157,13 +162,16 @@ Expected output:
 Test camera independently:
 
 ```bash
-# Quick test with libcamera
-libcamera-hello
+# Quick test with camera
+rpicam-hello
+
+# List available cameras
+rpicam-still --list-cameras
 
 # Capture test image
-libcamera-jpeg -o test.jpg
+rpicam-jpeg -o test.jpg
 
-# Test picamera2
+# Test picamera2 (used by ChedWeb)
 python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); print('Camera OK'); cam.stop()"
 ```
 
@@ -230,11 +238,14 @@ pc.getStats().then(stats => {
 
 **Solutions**:
 
-1. Verify camera is connected properly
-2. Check camera is enabled: `sudo raspi-config` -> Interface Options -> Camera
-3. Test with: `libcamera-hello`
+1. Verify camera is connected properly (cable seated properly, correct port)
+2. Test camera detection: `rpicam-hello` (should show preview)
+3. List cameras: `rpicam-still --list-cameras`
 4. Check camera permissions: `sudo usermod -a -G video $USER`
-5. Reboot after enabling camera
+5. If still not working, enable manually: `sudo raspi-config` -> Interface Options -> Camera
+6. Reboot after making changes: `sudo reboot`
+
+**Note**: Modern Raspberry Pi OS uses `rpicam-*` commands and has camera enabled by default.
 
 ### Low Framerate
 

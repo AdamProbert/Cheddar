@@ -74,7 +74,7 @@ log "Installing base packages: ${BASE_PACKAGES[*]}"
 apt install -y "${BASE_PACKAGES[@]}"
 
 # Camera and video streaming dependencies for ChedWeb
-CAMERA_PACKAGES=(python3-picamera2 python3-libcamera python3-kms++ libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev)
+CAMERA_PACKAGES=(python3-picamera2 python3-libcamera python3-kms++ libcap-dev libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev)
 log "Installing camera and video codec libraries: ${CAMERA_PACKAGES[*]}"
 apt install -y "${CAMERA_PACKAGES[@]}"
 
@@ -214,19 +214,39 @@ fi
 
 # Verify camera hardware is detected
 log "Checking for camera hardware..."
+CAMERA_DETECTED=false
 if vcgencmd get_camera 2>/dev/null | grep -q "detected=1"; then
-  log "Camera hardware detected"
+  log "Camera hardware detected via vcgencmd"
+  CAMERA_DETECTED=true
 elif ls /dev/video* >/dev/null 2>&1; then
   log "Video device(s) found: $(ls /dev/video* 2>/dev/null | tr '\n' ' ')"
+  CAMERA_DETECTED=true
+elif command -v rpicam-hello >/dev/null 2>&1 && timeout 2 rpicam-hello --list-cameras 2>&1 | grep -q "Available cameras"; then
+  log "Camera detected via rpicam"
+  CAMERA_DETECTED=true
 else
   log "WARNING: No camera hardware detected. Ensure camera is properly connected."
   log "The system will still be configured, but camera may not work until hardware is connected."
 fi
 
-# Enable camera interface (legacy camera support)
-log "Enabling camera interface (requires reboot to take effect)"
-raspi-config nonint do_camera 0 || log "Camera enable command may have failed (continuing)"
-log "Camera interface enabled. A reboot is required for camera to be accessible."
+# Note: Modern Raspberry Pi OS has camera enabled by default
+# Only enable if camera is detected but camera test fails
+if [ "$CAMERA_DETECTED" = true ]; then
+  CAMERA_WORKING=false
+  if command -v rpicam-hello >/dev/null 2>&1; then
+    timeout 2 rpicam-hello --version >/dev/null 2>&1 && CAMERA_WORKING=true
+  fi
+  
+  if [ "$CAMERA_WORKING" = false ]; then
+    log "Camera detected but not responding. Attempting to enable camera interface..."
+    raspi-config nonint do_camera 0 || log "Camera enable command may have failed (continuing)"
+    log "Camera interface enabled. A reboot is required."
+  else
+    log "Camera interface is already enabled and working"
+  fi
+else
+  log "Skipping camera interface configuration (no camera detected)"
+fi
 
 # Add user to video group for camera access
 log "Adding $INVOKING_USER to 'video' group for camera permissions"
@@ -235,7 +255,14 @@ usermod -a -G video "$INVOKING_USER" || log "Failed to add user to video group (
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
-log "Setup complete. REBOOT REQUIRED for camera interface to be enabled."
+# Determine if reboot is needed
+REBOOT_NEEDED=false
+if [ "$CAMERA_DETECTED" = true ] && [ "$CAMERA_WORKING" = false ]; then
+  REBOOT_NEEDED=true
+  log "Setup complete. REBOOT REQUIRED for camera interface changes."
+else
+  log "Setup complete."
+fi
 
 echo
 echo "=========================================="
@@ -249,7 +276,8 @@ echo "✓ SSH key generated"
 echo "✓ Cheddar repository cloned/updated"
 echo "✓ ChedWeb backend environment configured"
 [[ -d "$CHEDWEB_FRONTEND" ]] && command -v npm >/dev/null 2>&1 && echo "✓ ChedWeb frontend dependencies installed"
-echo "✓ Camera interface enabled (pending reboot)"
+[ "$CAMERA_DETECTED" = true ] && echo "✓ Camera hardware detected"
+[ "$REBOOT_NEEDED" = true ] && echo "✓ Camera interface configured (reboot required)" || echo "✓ Camera ready to use"
 echo "✓ User added to video group"
 echo "✓ Default shell set to zsh"
 echo "=========================================="
@@ -259,12 +287,22 @@ cat <<EOF
 Next steps:
 - Add the printed SSH public key to GitHub (Settings → SSH and GPG keys).
 
-- REBOOT the Raspberry Pi to enable the camera interface:
+EOF
+
+if [ "$REBOOT_NEEDED" = true ]; then
+cat <<EOF
+- REBOOT the Raspberry Pi to apply camera interface changes:
   sudo reboot
 
-- After reboot, verify camera is working:
-  libcamera-hello                    # Should show camera preview
-  libcamera-jpeg -o test.jpg         # Capture a test image
+EOF
+fi
+
+cat <<EOF
+
+- Verify camera is working (after reboot if required):
+  rpicam-hello                       # Should show camera preview
+  rpicam-still --list-cameras        # List detected cameras
+  rpicam-jpeg -o test.jpg            # Capture a test image
 
 - Test picamera2 (used by ChedWeb):
   python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); print('Camera OK'); cam.stop()"
