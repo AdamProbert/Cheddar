@@ -5,7 +5,8 @@ import axios from 'axios'
 import type { SDPOffer, SDPAnswer, ControlCommand, TelemetryData } from '../types/schemas'
 import { TelemetryDataSchema } from '../types/schemas'
 
-const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : ''
+// Use relative URL to go through Vite proxy in dev, or same origin in production
+const API_BASE = ''
 
 export interface WebRTCCallbacks {
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void
