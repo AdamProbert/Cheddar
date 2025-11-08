@@ -17,7 +17,7 @@ def test_peer_manager_init():
 async def test_handle_offer_creates_peer_connection():
     """Test that handle_offer creates a peer connection."""
     manager = PeerManager(ice_servers=[{"urls": ["stun:stun.l.google.com:19302"]}])
-    
+
     # Create a minimal valid SDP offer
     minimal_offer = """v=0
 o=- 0 0 IN IP4 127.0.0.1
@@ -33,12 +33,12 @@ a=setup:actpass
 a=mid:0
 a=sctp-port:5000
 """
-    
+
     answer_sdp = await manager.handle_offer(minimal_offer)
     assert answer_sdp is not None
     assert manager.pc is not None
     assert "v=0" in answer_sdp  # Basic SDP validation
-    
+
     await manager.close()
 
 

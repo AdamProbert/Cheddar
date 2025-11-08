@@ -101,7 +101,7 @@ class PeerManager:
     async def handle_offer(self, offer_sdp: str) -> str:
         """Handle SDP offer and return SDP answer."""
         if not self.pc:
-            # Create peer connection without video track initially
+            # Create peer connection
             self.pc = RTCPeerConnection()
 
             @self.pc.on("connectionstatechange")
@@ -117,16 +117,16 @@ class PeerManager:
                     self.control_channel = channel
                     self._setup_datachannel(channel)
 
-        # Set remote description first
+            # Add video track before processing offer so it's included in negotiation
+            if self.video_track:
+                logger.info("Adding video track to peer connection")
+                self.pc.addTrack(self.video_track)
+            else:
+                logger.warning("No video track available - video streaming disabled")
+
+        # Set remote description
         offer = RTCSessionDescription(sdp=offer_sdp, type="offer")
         await self.pc.setRemoteDescription(offer)
-
-        # Now add video track after we know what the client wants
-        if self.video_track:
-            logger.info("Adding video track to peer connection")
-            self.pc.addTrack(self.video_track)
-        else:
-            logger.warning("No video track available - video streaming disabled")
 
         # Create answer
         answer = await self.pc.createAnswer()
