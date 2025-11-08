@@ -24,6 +24,7 @@ sudo bash ~/Cheddar/PieBrain/setup_rpi.sh --git-name "Your Name" --git-email "yo
 ```
 
 This script automatically:
+
 - Installs all camera and video codec system dependencies
 - Enables the camera interface
 - Creates the ChedWeb backend virtual environment
@@ -90,6 +91,7 @@ If you prefer to set up manually or need to troubleshoot:
    ```
 
    Important camera settings in `.env`:
+
    ```bash
    # Camera configuration
    CAMERA_ENABLED=true        # Enable/disable camera
@@ -134,6 +136,7 @@ python main.py
 ```
 
 Expected output:
+
 ```
 2024-11-08 10:00:00 | INFO     | main:lifespan:35 - Starting ChedWeb backend...
 2024-11-08 10:00:00 | INFO     | main:lifespan:38 - Camera enabled: True
@@ -143,6 +146,7 @@ Expected output:
 ```
 
 **If camera is unavailable:**
+
 ```
 2024-11-08 10:00:00 | WARNING  | camera:<module>:18 - picamera2 not available - camera streaming will be disabled
 2024-11-08 10:00:00 | INFO     | camera:_init_camera:75 - Using mock video source (camera not available)
@@ -166,6 +170,7 @@ python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); pri
 ### 3. WebRTC Connection Test
 
 1. **Start backend:**
+
    ```bash
    cd backend
    source .venv/bin/activate
@@ -173,6 +178,7 @@ python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); pri
    ```
 
 2. **Start frontend (in new terminal):**
+
    ```bash
    cd frontend
    npm install
@@ -202,6 +208,7 @@ Monitor video stream performance:
 ```
 
 **In browser console**, check WebRTC stats:
+
 ```javascript
 // Open browser DevTools (F12)
 // In Console tab, paste:
@@ -222,6 +229,7 @@ pc.getStats().then(stats => {
 **Problem**: `picamera2 not available` or camera initialization fails
 
 **Solutions**:
+
 1. Verify camera is connected properly
 2. Check camera is enabled: `sudo raspi-config` -> Interface Options -> Camera
 3. Test with: `libcamera-hello`
@@ -233,6 +241,7 @@ pc.getStats().then(stats => {
 **Problem**: FPS significantly below configured rate
 
 **Solutions**:
+
 1. Reduce resolution: Try 640x480 instead of 1280x720
 2. Reduce framerate target: Use 15 or 20 fps
 3. Check CPU usage: `top` (camera encoding should use ~20-40% on Pi 3B)
@@ -244,6 +253,7 @@ pc.getStats().then(stats => {
 **Problem**: Connection succeeds but no video appears
 
 **Solutions**:
+
 1. Check browser console for errors
 2. Verify WebRTC connection state: Should be "connected"
 3. Check that video track was added (backend logs)
@@ -255,6 +265,7 @@ pc.getStats().then(stats => {
 **Problem**: Test pattern shows instead of camera feed
 
 **Solutions**:
+
 1. Check `CAMERA_ENABLED=true` in `.env`
 2. Verify picamera2 is installed: `python3 -c "import picamera2"`
 3. Check backend logs for camera initialization errors
@@ -286,6 +297,7 @@ pc.getStats().then(stats => {
 For production use on Raspberry Pi:
 
 1. **Optimize settings:**
+
    ```bash
    # In .env
    DEBUG=false
@@ -296,6 +308,7 @@ For production use on Raspberry Pi:
    ```
 
 2. **Use systemd service** (see `backend.service` file):
+
    ```bash
    sudo cp backend.service /etc/systemd/system/
    sudo systemctl enable backend
@@ -303,6 +316,7 @@ For production use on Raspberry Pi:
    ```
 
 3. **Monitor performance:**
+
    ```bash
    # Check service status
    sudo systemctl status backend

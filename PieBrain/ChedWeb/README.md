@@ -167,12 +167,14 @@ npm run build
 **Status**: ✅ **Video streaming is now fully implemented!**
 
 The camera module has been integrated with the following features:
+
 - Hardware-accelerated H.264 encoding via picamera2
 - Configurable resolution, framerate, and rotation
 - Automatic fallback to mock test pattern when camera unavailable
 - WebRTC video track seamlessly integrated into peer connections
 
 **See `CAMERA_SETUP.md` for:**
+
 - Installation instructions
 - Configuration options
 - Testing procedures

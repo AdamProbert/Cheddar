@@ -100,23 +100,23 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
     """
     if not peer_manager:
         raise HTTPException(status_code=500, detail="Peer manager not initialized")
-    
+
     if not camera_manager:
         raise HTTPException(status_code=500, detail="Camera manager not initialized")
 
     try:
         logger.info("Received SDP offer from client")
-        
+
         # Create a new video track for this connection
         video_track = camera_manager.create_video_track()
         if video_track:
             logger.info("Video track created successfully")
         else:
             logger.warning("No video track created - camera may be disabled")
-        
+
         # Update peer manager with the video track
         peer_manager.video_track = video_track
-        
+
         answer_sdp = await peer_manager.handle_offer(offer.sdp)
         logger.info("Returning SDP answer to client")
         return SDPAnswer(sdp=answer_sdp, type="answer")
