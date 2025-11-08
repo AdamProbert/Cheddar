@@ -30,20 +30,22 @@ function App() {
       {/* Main Content with grid layout */}
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Video Feed - takes 2 columns on large screens */}
-          <div className="lg:col-span-2 animate-slide-in">
-            <VideoFeed />
-          </div>
-
-          {/* Sidebar - controls */}
-          <div className="space-y-6">
-            <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
+          {/* Left column - Video and Rover Controls */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="animate-slide-in">
+              <VideoFeed />
+            </div>
+            <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
               <RoverControls />
             </div>
-            <div className="animate-slide-in" style={{ animationDelay: '0.3s' }}>
+          </div>
+
+          {/* Right sidebar - System info and camera controls */}
+          <div className="space-y-6">
+            <div className="animate-slide-in" style={{ animationDelay: '0.2s' }}>
               <SystemMetricsCard />
             </div>
-            <div className="animate-slide-in" style={{ animationDelay: '0.4s' }}>
+            <div className="animate-slide-in" style={{ animationDelay: '0.3s' }}>
               <CameraControls />
             </div>
           </div>

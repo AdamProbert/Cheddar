@@ -2,10 +2,11 @@
  * Rover control panel - displays input status and manual controls
  */
 import { useEffect, useState } from 'react'
-import { Card } from './ui/Card'
+import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { useAppStore } from '../store'
 import { InputManager, type RoverInputState, type DriveMode } from '../utils/inputManager'
+import { Gamepad2 } from 'lucide-react'
 
 const DRIVE_MODE_LABELS: Record<DriveMode, string> = {
   ackermann: 'Ackermann',
@@ -95,22 +96,22 @@ export function RoverControls() {
   }
   
   return (
-    <Card className="border-satisfactory-orange/30">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-satisfactory-orange uppercase tracking-wider">
-            Rover Controls
-          </h3>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {gamepadConnected && (
-              <div className="flex items-center gap-2 text-sm text-satisfactory-cyan">
-                <div className="w-2 h-2 bg-satisfactory-cyan rounded-full animate-pulse-glow"></div>
-                Gamepad
-              </div>
-            )}
+            <Gamepad2 className="w-5 h-5 text-satisfactory-orange" />
+            Rover Controls
           </div>
-        </div>
+          {gamepadConnected && (
+            <div className="flex items-center gap-2 text-sm text-satisfactory-cyan font-normal">
+              <div className="w-2 h-2 bg-satisfactory-cyan rounded-full animate-pulse-glow"></div>
+              Gamepad
+            </div>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
         
         {!isConnected && (
           <div className="text-sm text-muted-foreground">
@@ -242,7 +243,7 @@ export function RoverControls() {
             </div>
           </>
         )}
-      </div>
+      </CardContent>
     </Card>
   )
 }
