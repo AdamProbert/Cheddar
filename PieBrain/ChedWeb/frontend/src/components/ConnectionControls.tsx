@@ -6,6 +6,7 @@ import { useAppStore } from '@/store'
 import { Button } from './ui/Button'
 import { WebRTCManager } from '@/utils/webrtc'
 import { Wifi, WifiOff, Loader2 } from 'lucide-react'
+import { CameraSettingsSchema } from '@/types/schemas'
 
 let webrtcManager: WebRTCManager | null = null
 
@@ -16,11 +17,24 @@ export function ConnectionControls() {
   const updateTelemetry = useAppStore(state => state.updateTelemetry)
   const updateSystemMetrics = useAppStore(state => state.updateSystemMetrics)
   const setVideoStream = useAppStore(state => state.setVideoStream)
+  const setCameraSettings = useAppStore(state => state.setCameraSettings)
 
   const handleConnect = async () => {
     try {
       setIsConnecting(true)
       setConnectionState('connecting')
+
+      // Fetch camera settings to get the correct resolution
+      try {
+        const response = await fetch('/api/camera/settings')
+        if (response.ok) {
+          const data = await response.json()
+          const settings = CameraSettingsSchema.parse(data)
+          setCameraSettings(settings)
+        }
+      } catch (error) {
+        console.error('Failed to fetch camera settings:', error)
+      }
 
       // Create WebRTC manager
       webrtcManager = new WebRTCManager({

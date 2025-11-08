@@ -4,17 +4,8 @@
 import { useState, useEffect } from 'react'
 import { Card } from './ui/Card'
 import { Button } from './ui/Button'
-
-interface CameraSettings {
-  enabled: boolean
-  width: number
-  height: number
-  framerate: number
-  flip_180: boolean
-  is_noir: boolean
-  awb_mode: string
-  color_gains: [number, number]
-}
+import { useAppStore } from '@/store'
+import type { CameraSettings } from '@/types/schemas'
 
 const AWB_MODES = [
   { value: 'manual', label: 'Manual (Use Color Gains)' },
@@ -42,6 +33,7 @@ export function CameraControls() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [needsRestart, setNeedsRestart] = useState(false)
+  const setCameraSettings = useAppStore(state => state.setCameraSettings)
 
   // Temporary state for form inputs
   const [awbMode, setAwbMode] = useState<string>('manual')
@@ -50,17 +42,13 @@ export function CameraControls() {
   const [framerate, setFramerate] = useState<number>(30)
   const [resolution, setResolution] = useState<string>('640x480')
 
-  // Fetch current settings on mount
-  useEffect(() => {
-    fetchSettings()
-  }, [])
-
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/camera/settings')
       if (!response.ok) throw new Error('Failed to fetch camera settings')
       const data: CameraSettings = await response.json()
       setSettings(data)
+      setCameraSettings(data) // Update store with current settings
       
       // Update form state
       setAwbMode(data.awb_mode)
@@ -72,6 +60,12 @@ export function CameraControls() {
       setError(err instanceof Error ? err.message : 'Failed to load settings')
     }
   }
+
+  // Fetch current settings on mount
+  useEffect(() => {
+    fetchSettings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updateSettings = async () => {
     setLoading(true)
@@ -97,6 +91,7 @@ export function CameraControls() {
       const result = await response.json()
       setNeedsRestart(result.needs_restart)
       setSettings(result.current_settings)
+      setCameraSettings(result.current_settings) // Update store with new settings
       
       if (!result.needs_restart) {
         // Show success message

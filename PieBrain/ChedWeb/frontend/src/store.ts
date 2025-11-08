@@ -2,7 +2,7 @@
  * Zustand store for application state management
  */
 import { create } from 'zustand'
-import type { TelemetryData, ConfigResponse, SystemMetrics } from './types/schemas'
+import type { TelemetryData, ConfigResponse, SystemMetrics, CameraSettings } from './types/schemas'
 
 export type ConnectionState =
   | 'disconnected'
@@ -42,6 +42,10 @@ interface AppState {
   // Video
   videoStream: MediaStream | null
   setVideoStream: (stream: MediaStream | null) => void
+
+  // Camera
+  cameraSettings: CameraSettings | null
+  setCameraSettings: (settings: CameraSettings) => void
 
   // Config
   config: ConfigResponse | null
@@ -96,6 +100,10 @@ export const useAppStore = create<AppState>(set => ({
   // Video
   videoStream: null,
   setVideoStream: stream => set({ videoStream: stream }),
+
+  // Camera
+  cameraSettings: null,
+  setCameraSettings: settings => set({ cameraSettings: settings }),
 
   // Config
   config: null,

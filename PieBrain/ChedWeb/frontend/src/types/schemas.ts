@@ -54,6 +54,17 @@ export const ConfigResponseSchema = z.object({
   deadman_timeout_ms: z.number(),
 })
 
+export const CameraSettingsSchema = z.object({
+  enabled: z.boolean(),
+  width: z.number(),
+  height: z.number(),
+  framerate: z.number(),
+  flip_180: z.boolean(),
+  is_noir: z.boolean(),
+  awb_mode: z.string(),
+  color_gains: z.tuple([z.number(), z.number()]),
+})
+
 // Type inference
 export type SDPOffer = z.infer<typeof SDPOfferSchema>
 export type SDPAnswer = z.infer<typeof SDPAnswerSchema>
@@ -62,3 +73,4 @@ export type ControlCommand = z.infer<typeof ControlCommandSchema>
 export type TelemetryData = z.infer<typeof TelemetryDataSchema>
 export type SystemMetrics = z.infer<typeof SystemMetricsSchema>
 export type ConfigResponse = z.infer<typeof ConfigResponseSchema>
+export type CameraSettings = z.infer<typeof CameraSettingsSchema>
