@@ -37,6 +37,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
         framerate: int = 30,
         flip_180: bool = False,
         use_mock: bool = False,
+        is_noir: bool = True,
     ) -> None:
         """
         Initialize the Pi camera video track.
@@ -47,6 +48,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
             framerate: Target framerate (FPS)
             flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             use_mock: If True, use mock video source instead of real camera
+            is_noir: If True, apply color correction for NoIR (No IR filter) camera
         """
         super().__init__()
         self.width = width
@@ -54,6 +56,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
         self.framerate = framerate
         self.flip_180 = flip_180
         self.use_mock = use_mock or not PICAMERA2_AVAILABLE
+        self.is_noir = is_noir
 
         self.camera: Optional[Picamera2] = None
         self._frame_count = 0
@@ -80,7 +83,19 @@ class PiCameraVideoTrack(VideoStreamTrack):
             # Configure camera for video streaming
             video_config = self.camera.create_video_configuration(
                 main={"size": (self.width, self.height), "format": "RGB888"},
-                controls={"FrameRate": self.framerate},
+                controls={
+                    "FrameRate": self.framerate,
+                    # NoIR camera adjustments - reduce blue gain to compensate for IR sensitivity
+                    "AwbEnable": True,
+                    "AwbMode": (
+                        libcamera.controls.AwbModeEnum.Daylight
+                        if self.is_noir
+                        else libcamera.controls.AwbModeEnum.Auto
+                    ),
+                    "ColourGains": (
+                        (1.8, 1.2) if self.is_noir else None
+                    ),  # Increase red, reduce blue
+                },
             )
 
             # Flip camera 180 degrees if needed (for upside-down mounting)
@@ -157,12 +172,8 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 # Capture frame from picamera2
                 array = self.camera.capture_array()
 
-                # picamera2 outputs RGB888, but we need to ensure correct channel order
-                # Convert BGR to RGB if needed (common issue causing purple tint)
-                array = array[:, :, ::-1]  # Reverse color channels: BGR -> RGB
-
-                # Convert to av.VideoFrame
-                frame = VideoFrame.from_ndarray(array, format="rgb24")
+                # Use BGR format directly - picamera2 RGB888 seems to output BGR order
+                frame = VideoFrame.from_ndarray(array, format="bgr24")
                 frame.pts = pts
                 frame.time_base = time_base
 
@@ -210,6 +221,7 @@ class CameraManager:
         framerate: int = 30,
         flip_180: bool = False,
         enabled: bool = True,
+        is_noir: bool = True,
     ) -> None:
         """
         Initialize camera manager.
@@ -220,12 +232,14 @@ class CameraManager:
             framerate: Target framerate (FPS)
             flip_180: Flip camera 180 degrees (useful for upside-down mounting)
             enabled: Whether camera is enabled
+            is_noir: Whether using NoIR camera (requires color correction)
         """
         self.width = width
         self.height = height
         self.framerate = framerate
         self.flip_180 = flip_180
         self.enabled = enabled
+        self.is_noir = is_noir
         self.current_track: Optional[PiCameraVideoTrack] = None
 
     def create_video_track(self) -> Optional[PiCameraVideoTrack]:
@@ -252,6 +266,7 @@ class CameraManager:
             framerate=self.framerate,
             flip_180=self.flip_180,
             use_mock=not PICAMERA2_AVAILABLE,
+            is_noir=self.is_noir,
         )
 
         return self.current_track
