@@ -43,6 +43,9 @@ export class WebRTCManager {
       this.callbacks.onTrack?.(event.track)
     }
 
+    // Add transceiver for receiving video from server (one-way video)
+    this.pc.addTransceiver('video', { direction: 'recvonly' })
+
     // Create DataChannel for control commands
     this.dataChannel = this.pc.createDataChannel('control', {
       ordered: true,
