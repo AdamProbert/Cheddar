@@ -35,7 +35,7 @@ export const TelemetryDataSchema = z.object({
   cpu_temp: z.number().nullable().optional(),
   signal_strength: z.number().int().min(0).max(100).nullable().optional(),
   timestamp: z.number(),
-  latency_ms: z.number().optional(),
+  latency_ms: z.number().nullable().optional(),
 })
 
 export const SystemMetricsSchema = z.object({
