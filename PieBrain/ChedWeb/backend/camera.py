@@ -89,7 +89,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
             # Map AWB mode string to libcamera enum
             awb_mode_map = {
                 "auto": libcamera.controls.AwbModeEnum.Auto,
-                "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
+                "greyworld": libcamera.controls.AwbModeEnum.GreyWorld,  # Note: GreyWorld not Greyworld
                 "daylight": libcamera.controls.AwbModeEnum.Daylight,
                 "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
                 "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
@@ -243,7 +243,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 if self.awb_mode:
                     awb_mode_map = {
                         "auto": libcamera.controls.AwbModeEnum.Auto,
-                        "greyworld": libcamera.controls.AwbModeEnum.Greyworld,
+                        "greyworld": libcamera.controls.AwbModeEnum.GreyWorld,  # Note: GreyWorld not Greyworld
                         "daylight": libcamera.controls.AwbModeEnum.Daylight,
                         "tungsten": libcamera.controls.AwbModeEnum.Tungsten,
                         "fluorescent": libcamera.controls.AwbModeEnum.Fluorescent,
