@@ -9,14 +9,15 @@ set -euo pipefail
 # - Updates system packages
 # - Installs base development tools and git
 # - Installs camera/video streaming dependencies (picamera2, libcamera, codec libraries)
+# - Installs Node.js LTS (if not present) for frontend development
 # - Configures git with provided name/email
 # - Sets up Python tooling (pip, pipx, virtualenv)
 # - Installs zsh + Oh My Zsh
 # - Generates SSH key
 # - Clones Cheddar repository
 # - Sets up ChedWeb backend virtualenv and dependencies
-# - Sets up ChedWeb frontend dependencies (if Node.js available)
-# - Enables camera interface
+# - Sets up ChedWeb frontend dependencies (npm install)
+# - Enables camera interface (if needed)
 # - Adds user to video group for camera access
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -198,15 +199,26 @@ if [[ -d "$CHEDWEB_FRONTEND" ]]; then
   # Check if Node.js and npm are available
   if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
     log "Node.js $(node -v) and npm $(npm -v) detected"
+  else
+    log "Node.js/npm not found. Installing Node.js LTS..."
     
-    # Install frontend dependencies
+    # Install Node.js from NodeSource repository
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+    apt install -y nodejs
+    
+    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+      log "Node.js $(node -v) and npm $(npm -v) installed successfully"
+    else
+      log "WARNING: Node.js installation may have failed. Frontend setup will be skipped."
+    fi
+  fi
+  
+  # Install frontend dependencies if Node.js is available
+  if command -v npm >/dev/null 2>&1; then
     if [[ -f "${CHEDWEB_FRONTEND}/package.json" ]]; then
       log "Installing ChedWeb frontend dependencies"
       sudo -u "$INVOKING_USER" bash -lc "cd '${CHEDWEB_FRONTEND}' && npm install"
     fi
-  else
-    log "Node.js/npm not found. Frontend dependencies not installed."
-    log "To install Node.js, run: curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install -y nodejs"
   fi
 else
   log "ChedWeb frontend directory not found; skipping frontend setup"
@@ -275,6 +287,7 @@ echo "✓ Python $(python3 -V 2>&1 | cut -d' ' -f2) with pip"
 echo "✓ SSH key generated"
 echo "✓ Cheddar repository cloned/updated"
 echo "✓ ChedWeb backend environment configured"
+command -v node >/dev/null 2>&1 && echo "✓ Node.js $(node -v) and npm $(npm -v) installed"
 [[ -d "$CHEDWEB_FRONTEND" ]] && command -v npm >/dev/null 2>&1 && echo "✓ ChedWeb frontend dependencies installed"
 [ "$CAMERA_DETECTED" = true ] && echo "✓ Camera hardware detected"
 [ "$REBOOT_NEEDED" = true ] && echo "✓ Camera interface configured (reboot required)" || echo "✓ Camera ready to use"
