@@ -85,6 +85,7 @@ const KEY_MAP = {
 
 export class InputManager {
   private state: RoverInputState
+  private previousState: RoverInputState | null = null
   private callback: InputCallback | null = null
   private keyboardPressed: Set<string> = new Set()
   private gamepadIndex: number | null = null
@@ -210,6 +211,38 @@ export class InputManager {
   }
   
   /**
+   * Round servo angle to integer (Pydantic expects int)
+   */
+  private roundServoAngle(angle: number): number {
+    return Math.round(this.clamp(angle, 0, 180))
+  }
+  
+  /**
+   * Check if state has changed significantly
+   */
+  private hasStateChanged(): boolean {
+    if (!this.previousState) return true
+    
+    // Check emergency stop
+    if (this.state.emergencyStop !== this.previousState.emergencyStop) return true
+    
+    // Check drive mode
+    if (this.state.driveMode !== this.previousState.driveMode) return true
+    
+    // Check motors (compare with small epsilon for floating point)
+    for (let i = 0; i < 6; i++) {
+      if (Math.abs(this.state.motors[i] - this.previousState.motors[i]) > 0.01) return true
+    }
+    
+    // Check servos (integer comparison)
+    for (let i = 0; i < 6; i++) {
+      if (this.state.servos[i] !== this.previousState.servos[i]) return true
+    }
+    
+    return false
+  }
+  
+  /**
    * Update state from keyboard inputs
    */
   private updateFromKeyboard(): void {
@@ -320,8 +353,8 @@ export class InputManager {
     
     // Front wheels steer, others straight
     const steerAngle = 90 + turn * 45 // ±45 degrees from center
-    this.state.servos[0] = this.clamp(steerAngle, 0, 180) // FL
-    this.state.servos[1] = this.clamp(steerAngle, 0, 180) // FR
+    this.state.servos[0] = this.roundServoAngle(steerAngle) // FL
+    this.state.servos[1] = this.roundServoAngle(steerAngle) // FR
     this.state.servos[2] = 90 // ML straight
     this.state.servos[3] = 90 // MR straight
     this.state.servos[4] = 90 // RL straight
@@ -338,7 +371,7 @@ export class InputManager {
     
     // All wheels point in direction of movement
     const angle = Math.atan2(turn, forward) * (180 / Math.PI)
-    const steerAngle = this.clamp(90 + angle, 0, 180)
+    const steerAngle = this.roundServoAngle(90 + angle)
     this.state.servos = [steerAngle, steerAngle, steerAngle, steerAngle, steerAngle, steerAngle]
   }
   
@@ -401,13 +434,13 @@ export class InputManager {
     
     // Front wheels steer based on turn
     const frontSteer = 90 + turn * 45
-    this.state.servos[0] = this.clamp(frontSteer, 0, 180)
-    this.state.servos[1] = this.clamp(frontSteer, 0, 180)
+    this.state.servos[0] = this.roundServoAngle(frontSteer)
+    this.state.servos[1] = this.roundServoAngle(frontSteer)
     
     // Rear wheels steer opposite to front
     const rearSteer = 90 - turn * 45
-    this.state.servos[4] = this.clamp(rearSteer, 0, 180)
-    this.state.servos[5] = this.clamp(rearSteer, 0, 180)
+    this.state.servos[4] = this.roundServoAngle(rearSteer)
+    this.state.servos[5] = this.roundServoAngle(rearSteer)
     
     // All wheels drive at same speed
     const speed = this.clamp(forward, -1, 1)
@@ -447,9 +480,12 @@ export class InputManager {
       this.updateFromKeyboard()
     }
     
-    // Always emit state to ensure UI updates even when returning to neutral
-    // This fixes the issue where releasing sticks doesn't update the display
-    this.emitState()
+    // Only emit state if it has changed (reduces network spam)
+    if (this.hasStateChanged()) {
+      this.emitState()
+      // Save current state for next comparison
+      this.previousState = { ...this.state }
+    }
     
     // Continue polling
     this.animationFrameId = requestAnimationFrame(this.pollInputs)
