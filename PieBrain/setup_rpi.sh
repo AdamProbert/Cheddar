@@ -321,6 +321,27 @@ if [[ -e /dev/ttyAMA0 ]]; then
   chmod 660 /dev/ttyAMA0 2>/dev/null || true
 fi
 
+# Disable serial console (getty) on UART so it's available for ESP32 communication
+log "Disabling serial console on UART"
+systemctl stop serial-getty@ttyAMA0.service 2>/dev/null || true
+systemctl disable serial-getty@ttyAMA0.service 2>/dev/null || true
+log "Serial console disabled"
+
+# Remove console from kernel command line
+CMDLINE_FILE="/boot/firmware/cmdline.txt"
+[[ ! -f "$CMDLINE_FILE" ]] && CMDLINE_FILE="/boot/cmdline.txt"
+
+if [[ -f "$CMDLINE_FILE" ]]; then
+  log "Removing serial console from kernel command line"
+  # Backup original
+  cp "$CMDLINE_FILE" "${CMDLINE_FILE}.bak" 2>/dev/null || true
+  # Remove both console=serial0 and console=ttyAMA0 entries
+  sed -i 's/console=serial0[^ ]* //g; s/console=ttyAMA0[^ ]* //g' "$CMDLINE_FILE"
+  log "Kernel command line updated (console entries removed)"
+else
+  log "WARNING: Could not find cmdline.txt - serial console may still be active"
+fi
+
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
