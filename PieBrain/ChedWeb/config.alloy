@@ -87,17 +87,14 @@ loki.write "grafana_cloud_loki" {
 
 // Collect host metrics (CPU, memory, disk, network, etc.)
 prometheus.exporter.unix "system" {
+	// Enable filesystem collector
+	set_collectors = ["cpu", "meminfo", "diskstats", "filesystem", "netdev", "loadavg", "uname"]
+	
 	// Collect filesystem metrics
 	filesystem {
 		// Ignore virtual filesystems (regex pattern)
 		fs_types_exclude = "^(tmpfs|devtmpfs|devfs|iso9660|overlay|aufs|squashfs)$"
 	}
-	
-	// Collect network metrics
-	netdev {}
-	
-	// Collect disk I/O metrics
-	diskstats {}
 }
 
 // Scrape the unix exporter metrics
