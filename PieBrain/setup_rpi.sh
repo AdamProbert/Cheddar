@@ -264,14 +264,56 @@ fi
 log "Adding $INVOKING_USER to 'video' group for camera permissions"
 usermod -a -G video "$INVOKING_USER" || log "Failed to add user to video group (continuing)"
 
+# Enable UART on GPIO 14/15 for serial communication with MotionDriver
+log "Configuring hardware UART on GPIO 14/15"
+BOOT_CONFIG="/boot/firmware/config.txt"
+# Fallback to old location if new one doesn't exist
+[[ ! -f "$BOOT_CONFIG" ]] && BOOT_CONFIG="/boot/config.txt"
+
+if [[ -f "$BOOT_CONFIG" ]]; then
+  log "Found boot config at $BOOT_CONFIG"
+  
+  # Check and add enable_uart=1
+  if grep -q "^enable_uart=1" "$BOOT_CONFIG"; then
+    log "UART already enabled in $BOOT_CONFIG"
+  else
+    log "Enabling UART in $BOOT_CONFIG"
+    echo "enable_uart=1" >> "$BOOT_CONFIG"
+  fi
+  
+  # Check and add dtoverlay=disable-bt
+  if grep -q "^dtoverlay=disable-bt" "$BOOT_CONFIG"; then
+    log "Bluetooth UART overlay already disabled in $BOOT_CONFIG"
+  else
+    log "Disabling Bluetooth to free primary UART in $BOOT_CONFIG"
+    echo "dtoverlay=disable-bt" >> "$BOOT_CONFIG"
+  fi
+  
+  log "UART configuration complete. Reboot required for changes to take effect."
+else
+  log "WARNING: Boot config file not found at $BOOT_CONFIG - UART configuration skipped"
+fi
+
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
 # Determine if reboot is needed
 REBOOT_NEEDED=false
+UART_CONFIGURED=false
+
+# Check if UART was just configured
+BOOT_CONFIG="/boot/firmware/config.txt"
+[[ ! -f "$BOOT_CONFIG" ]] && BOOT_CONFIG="/boot/config.txt"
+if [[ -f "$BOOT_CONFIG" ]]; then
+  grep -q "^enable_uart=1" "$BOOT_CONFIG" && grep -q "^dtoverlay=disable-bt" "$BOOT_CONFIG" && UART_CONFIGURED=true
+fi
+
 if [ "$CAMERA_DETECTED" = true ] && [ "$CAMERA_WORKING" = false ]; then
   REBOOT_NEEDED=true
   log "Setup complete. REBOOT REQUIRED for camera interface changes."
+elif [ "$UART_CONFIGURED" = true ]; then
+  REBOOT_NEEDED=true
+  log "Setup complete. REBOOT REQUIRED for UART configuration to take effect."
 else
   log "Setup complete."
 fi
@@ -291,6 +333,7 @@ command -v node >/dev/null 2>&1 && echo "✓ Node.js $(node -v) and npm $(npm -v
 [[ -d "$CHEDWEB_FRONTEND" ]] && command -v npm >/dev/null 2>&1 && echo "✓ ChedWeb frontend dependencies installed"
 [ "$CAMERA_DETECTED" = true ] && echo "✓ Camera hardware detected"
 [ "$REBOOT_NEEDED" = true ] && echo "✓ Camera interface configured (reboot required)" || echo "✓ Camera ready to use"
+[ "$UART_CONFIGURED" = true ] && echo "✓ UART enabled on GPIO 14/15 (Bluetooth disabled, reboot required)"
 echo "✓ User added to video group"
 echo "✓ Default shell set to zsh"
 echo "=========================================="
@@ -320,6 +363,17 @@ cat <<EOF
 - Test picamera2 (used by ChedWeb):
   python3 -c "from picamera2 import Picamera2; cam = Picamera2(); cam.start(); print('Camera OK'); cam.stop()"
 
+- Verify UART is enabled (after reboot if required):
+  ls -l /dev/serial*                 # Should show serial devices
+  cat /boot/firmware/config.txt | grep -E "enable_uart|disable-bt"
+  # UART should be available on GPIO 14 (TX) and GPIO 15 (RX)
+
+- Test serial communication with MotionDriver:
+  # Connect MotionDriver board to GPIO 14/15
+  # Example: Use minicom or screen to test
+  sudo apt install -y minicom
+  minicom -b 115200 -D /dev/serial0
+
 - Start ChedWeb backend (Terminal 1):
   cd ~/Cheddar/PieBrain/ChedWeb/backend
   source .venv/bin/activate
@@ -340,6 +394,12 @@ cat <<EOF
 
 ChedWeb Backend:  ${CHEDWEB_BACKEND}
 ChedWeb Frontend: ${CHEDWEB_FRONTEND}
+
+UART Configuration:
+- GPIO 14 (TX) and GPIO 15 (RX) are now configured for serial communication
+- Bluetooth has been disabled to free the primary UART
+- Serial device will be available at /dev/serial0
+- Baud rate: Configure in your application (MotionDriver uses 115200)
 EOF
 
 exit 0
