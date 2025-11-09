@@ -4,7 +4,7 @@
 import { useAppStore } from '@/store'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Activity, Cpu, HardDrive, Thermometer } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Thermometer, ExternalLink } from 'lucide-react'
 
 export function SystemMetricsCard() {
   const systemMetrics = useAppStore(state => state.systemMetrics)
@@ -173,6 +173,35 @@ export function SystemMetricsCard() {
             </ResponsiveContainer>
           </div>
         )}
+
+        {/* Grafana Links */}
+        <div className="space-y-2 pt-2 border-t border-satisfactory-panel-border">
+          <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">External Monitoring</h3>
+          <div className="grid grid-cols-1 gap-2">
+            <a
+              href="https://adamprobert.grafana.net/d/chedweb-backend-overview/chedweb-backend-overview?orgId=1&from=now-30m&to=now&timezone=browser&var-datasource=grafanacloud-prom&refresh=30s"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-satisfactory-panel p-2 rounded border border-satisfactory-panel-border hover:border-satisfactory-orange transition-colors group"
+            >
+              <ExternalLink className="w-4 h-4 text-satisfactory-cyan group-hover:text-satisfactory-orange" />
+              <span className="text-sm font-mono text-foreground group-hover:text-satisfactory-orange">
+                Grafana Metrics
+              </span>
+            </a>
+            <a
+              href="https://adamprobert.grafana.net/a/grafana-lokiexplore-app/explore?patterns=%5B%5D&var-primary_label=service_name%7C%3D~%7C.%2B&from=now-15m&to=now&timezone=browser&var-lineFormat=&var-ds=grafanacloud-logs&var-filters=&var-fields=&var-levels=&var-metadata=&var-jsonFields=&var-all-fields=&var-patterns=&var-lineFilterV2=&var-lineFilters=&var-filters_replica="
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-satisfactory-panel p-2 rounded border border-satisfactory-panel-border hover:border-satisfactory-orange transition-colors group"
+            >
+              <ExternalLink className="w-4 h-4 text-satisfactory-cyan group-hover:text-satisfactory-orange" />
+              <span className="text-sm font-mono text-foreground group-hover:text-satisfactory-orange">
+                Grafana Logs
+              </span>
+            </a>
+          </div>
+        </div>
 
         {chartData.length <= 1 && (
           <div className="text-xs text-muted-foreground text-center py-4 uppercase tracking-wider">
