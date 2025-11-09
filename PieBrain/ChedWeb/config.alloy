@@ -85,39 +85,37 @@ loki.write "grafana_cloud_loki" {
 // METRICS COLLECTION
 // ========================================
 
-// Collect host metrics (CPU, memory, disk, network, etc.)
-prometheus.exporter.unix "system" {
-	// Enable filesystem collector
-	set_collectors = ["cpu", "meminfo", "diskstats", "filesystem", "netdev", "loadavg", "uname"]
-	
-	// Collect filesystem metrics
-	filesystem {
-		// Ignore virtual filesystems (regex pattern)
-		fs_types_exclude = "^(tmpfs|devtmpfs|devfs|iso9660|overlay|aufs|squashfs)$"
+// Collect host metrics (CPU, memory, disk, network, etc.) using Grafana's recommended config
+prometheus.exporter.unix "integrations_node_exporter" {}
+
+discovery.relabel "integrations_node_exporter" {
+	targets = prometheus.exporter.unix.integrations_node_exporter.targets
+
+	rule {
+		target_label = "instance"
+		replacement  = constants.hostname
+	}
+
+	rule {
+		target_label = "job"
+		replacement  = "integrations/cheddar-system"
 	}
 }
 
-// Scrape the unix exporter metrics
-prometheus.scrape "system_metrics" {
-	targets    = prometheus.exporter.unix.system.targets
-	forward_to = [prometheus.relabel.system.receiver]
-	
-	scrape_interval = "15s"
+prometheus.scrape "integrations_node_exporter" {
+	targets    = discovery.relabel.integrations_node_exporter.output
+	forward_to = [prometheus.relabel.integrations_node_exporter.receiver]
+	job_name   = "integrations/node_exporter"
 }
 
-// Add labels to system metrics
-prometheus.relabel "system" {
+prometheus.relabel "integrations_node_exporter" {
 	forward_to = [prometheus.remote_write.metrics_service.receiver]
-	
+
+	// Keep only the most useful metrics to stay within free tier limits
 	rule {
 		source_labels = ["__name__"]
-		target_label  = "job"
-		replacement   = "cheddar-system"
-	}
-	
-	rule {
-		target_label = "host"
-		replacement  = "CheddarPi"
+		regex         = "up|node_boot_time_seconds|node_cpu_seconds_total|node_disk_io_time_seconds_total|node_disk_io_time_weighted_seconds_total|node_disk_read_bytes_total|node_disk_written_bytes_total|node_filesystem_avail_bytes|node_filesystem_files|node_filesystem_files_free|node_filesystem_readonly|node_filesystem_size_bytes|node_hwmon_temp_celsius|node_load1|node_load15|node_load5|node_memory_Buffers_bytes|node_memory_Cached_bytes|node_memory_MemAvailable_bytes|node_memory_MemFree_bytes|node_memory_MemTotal_bytes|node_memory_Slab_bytes|node_memory_SwapTotal_bytes|node_network_receive_bytes_total|node_network_receive_drop_total|node_network_receive_errs_total|node_network_receive_packets_total|node_network_transmit_bytes_total|node_network_transmit_drop_total|node_network_transmit_errs_total|node_network_transmit_packets_total|node_os_info|node_systemd_unit_state|node_uname_info|node_vmstat_pgmajfault"
+		action        = "keep"
 	}
 }
 
@@ -132,12 +130,12 @@ prometheus.scrape "alloy_metrics" {
 
 prometheus.relabel "alloy" {
 	forward_to = [prometheus.remote_write.metrics_service.receiver]
-	
+
 	rule {
 		target_label = "job"
 		replacement  = "alloy"
 	}
-	
+
 	rule {
 		target_label = "host"
 		replacement  = "CheddarPi"
