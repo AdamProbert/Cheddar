@@ -19,11 +19,9 @@ ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/backend
 # Start backend
 ExecStart=/home/adamprobert/Cheddar/PieBrain/ChedWeb/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
 
-# Restart configuration: 5 attempts within 10 minutes
+# Restart configuration:
 Restart=on-failure
 RestartSec=10
-StartLimitInterval=600
-StartLimitBurst=5
 
 # Logging (journalctl -u cheddar-backend -f)
 StandardOutput=journal
