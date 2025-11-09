@@ -21,6 +21,16 @@ const getApiBase = (): string => {
 
 const API_BASE = getApiBase()
 
+/**
+ * Get the API base URL for making requests
+ * Use this in components that need to make API calls
+ */
+export const getApiUrl = (path: string): string => {
+  // Remove leading slash if present to avoid double slashes
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path
+  return API_BASE ? `${API_BASE}/${cleanPath}` : `/${cleanPath}`
+}
+
 export interface WebRTCCallbacks {
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void
   onSystemMetrics?: (data: SystemMetrics) => void

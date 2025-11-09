@@ -6,6 +6,7 @@ import { Card } from './ui/Card'
 import { Button } from './ui/Button'
 import { useAppStore } from '@/store'
 import type { CameraSettings } from '@/types/schemas'
+import { getApiUrl } from '@/utils/webrtc'
 
 const AWB_MODES = [
   { value: 'manual', label: 'Manual (Use Color Gains)' },
@@ -44,7 +45,7 @@ export function CameraControls() {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch('/api/camera/settings')
+      const response = await fetch(getApiUrl('/api/camera/settings'))
       if (!response.ok) throw new Error('Failed to fetch camera settings')
       const data: CameraSettings = await response.json()
       setSettings(data)
@@ -74,7 +75,7 @@ export function CameraControls() {
     try {
       const [width, height] = resolution.split('x').map(Number)
       
-      const response = await fetch('/api/camera/settings', {
+      const response = await fetch(getApiUrl('/api/camera/settings'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
