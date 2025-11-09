@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     turn_password: str | None = None
 
     # Serial/UART (for ESP32 MotionDriver communication)
-    serial_port: str = "/dev/ttyUSB0"
+    # Use /dev/serial0 for GPIO UART on Raspberry Pi (GPIO 14/15)
+    serial_port: str = "/dev/serial0"
     serial_baudrate: int = 115200
     serial_timeout: float = 1.0
     serial_mock: bool = False  # Use mock bridge for testing without hardware
