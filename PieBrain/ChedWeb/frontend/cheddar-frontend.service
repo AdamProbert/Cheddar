@@ -10,6 +10,9 @@ User=adamprobert
 WorkingDirectory=/home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
+# Extended timeout for npm install and build on Raspberry Pi
+TimeoutStartSec=300
+
 # Pre-start: Git sync from main branch
 ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar && git checkout main && git reset --hard HEAD && git pull'
 
