@@ -294,6 +294,33 @@ else
   log "WARNING: Boot config file not found at $BOOT_CONFIG - UART configuration skipped"
 fi
 
+# Configure UART device permissions (fix for ttyAMA0 being root:root)
+log "Configuring UART device permissions"
+UDEV_RULE="/etc/udev/rules.d/99-ttyama.rules"
+if [[ ! -f "$UDEV_RULE" ]]; then
+  log "Creating udev rule for ttyAMA devices at $UDEV_RULE"
+  cat > "$UDEV_RULE" <<'EOF'
+# Give dialout group access to ttyAMA devices (RPi UART)
+KERNEL=="ttyAMA[0-9]*", GROUP="dialout", MODE="0660"
+EOF
+  log "Reloading udev rules"
+  udevadm control --reload-rules 2>/dev/null || true
+  udevadm trigger 2>/dev/null || true
+else
+  log "UART udev rule already exists at $UDEV_RULE"
+fi
+
+# Add user to dialout group for serial port access
+log "Adding $INVOKING_USER to 'dialout' group for serial port access"
+usermod -a -G dialout "$INVOKING_USER" || log "Failed to add user to dialout group (continuing)"
+
+# Fix permissions for current session (udev rule handles future boots)
+if [[ -e /dev/ttyAMA0 ]]; then
+  log "Fixing ttyAMA0 permissions for current session"
+  chgrp dialout /dev/ttyAMA0 2>/dev/null || true
+  chmod 660 /dev/ttyAMA0 2>/dev/null || true
+fi
+
 log "Setting default shell to zsh for $INVOKING_USER"
 chsh -s /usr/bin/zsh "$INVOKING_USER" || err "Failed to change shell to zsh (continuing)."
 
@@ -334,7 +361,8 @@ command -v node >/dev/null 2>&1 && echo "✓ Node.js $(node -v) and npm $(npm -v
 [ "$CAMERA_DETECTED" = true ] && echo "✓ Camera hardware detected"
 [ "$REBOOT_NEEDED" = true ] && echo "✓ Camera interface configured (reboot required)" || echo "✓ Camera ready to use"
 [ "$UART_CONFIGURED" = true ] && echo "✓ UART enabled on GPIO 14/15 (Bluetooth disabled, reboot required)"
-echo "✓ User added to video group"
+echo "✓ UART device permissions configured (dialout group)"
+echo "✓ User added to video and dialout groups"
 echo "✓ Default shell set to zsh"
 echo "=========================================="
 echo
