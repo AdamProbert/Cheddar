@@ -23,11 +23,9 @@ ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/fronten
 # Serve production build on port 3000
 ExecStart=/usr/bin/npx serve -s dist -l 3000
 
-# Restart configuration: 5 attempts within 10 minutes
+# Restart configuration:
 Restart=on-failure
 RestartSec=10
-StartLimitInterval=600
-StartLimitBurst=5
 
 # Logging (journalctl -u cheddar-frontend -f)
 StandardOutput=journal
