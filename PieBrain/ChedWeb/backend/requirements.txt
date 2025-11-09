@@ -9,6 +9,7 @@ loguru>=0.7.0
 pyserial>=3.5
 pyserial-asyncio>=0.6  # Async serial communication for UART bridge
 psutil>=5.9.0  # System metrics monitoring
+prometheus-client>=0.19.0  # Prometheus metrics for monitoring
 
 # Camera/Video dependencies
 # picamera2>=0.3.12  # Raspberry Pi camera interface - install via system packages, requires libcamera

@@ -2,14 +2,17 @@
 
 import sys
 import traceback
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import asyncio
 
 from config import settings
 from models import (
@@ -24,6 +27,7 @@ from models import (
 from peer_manager import PeerManager
 from camera import CameraManager
 from motion_driver_bridge import MotionDriverBridge, MockMotionDriverBridge
+import metrics
 
 
 # Configure structured logging
@@ -38,6 +42,17 @@ logger.add(
 peer_manager: PeerManager | None = None
 camera_manager: CameraManager | None = None
 motion_driver: MotionDriverBridge | MockMotionDriverBridge | None = None
+
+
+async def update_metrics_periodically():
+    """Background task to update system metrics periodically."""
+    while True:
+        try:
+            metrics.update_process_metrics()
+            await asyncio.sleep(15)  # Update every 15 seconds
+        except Exception as e:
+            logger.error(f"Error updating metrics: {e}")
+            await asyncio.sleep(15)
 
 
 @asynccontextmanager
@@ -90,10 +105,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         motion_driver=motion_driver,
     )
 
+    # Initialize metrics
+    metrics.camera_enabled.set(1 if settings.camera_enabled else 0)
+    metrics.motion_driver_connected.set(1 if motion_driver else 0)
+    if camera_manager:
+        metrics.camera_resolution.info(
+            {
+                "width": str(camera_manager.width),
+                "height": str(camera_manager.height),
+                "framerate": str(camera_manager.framerate),
+            }
+        )
+
+    # Start background metrics update task
+    metrics_task = asyncio.create_task(update_metrics_periodically())
+
     yield
 
     # Cleanup
     logger.info("Shutting down ChedWeb backend...")
+    metrics_task.cancel()
+    try:
+        await metrics_task
+    except asyncio.CancelledError:
+        pass
+
     if peer_manager:
         await peer_manager.close()
     if camera_manager:
@@ -121,6 +157,46 @@ app.add_middleware(
 )
 
 
+# Metrics middleware to track HTTP requests
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Track HTTP request metrics."""
+    method = request.method
+    endpoint = request.url.path
+
+    # Skip metrics endpoint itself to avoid recursion
+    if endpoint == "/metrics":
+        return await call_next(request)
+
+    # Track in-progress requests
+    metrics.http_requests_in_progress.labels(method=method, endpoint=endpoint).inc()
+
+    start_time = time.time()
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception as e:
+        logger.error(f"Error in request {method} {endpoint}: {e}")
+        metrics.errors_total.labels(error_type="http_exception", component="api").inc()
+        raise
+    finally:
+        # Track request completion
+        duration = time.time() - start_time
+        metrics.http_requests_total.labels(
+            method=method,
+            endpoint=endpoint,
+            status=status_code,
+        ).inc()
+        metrics.http_request_duration_seconds.labels(
+            method=method,
+            endpoint=endpoint,
+        ).observe(duration)
+        metrics.http_requests_in_progress.labels(method=method, endpoint=endpoint).dec()
+
+
 # Add validation exception handler for better debugging
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -137,6 +213,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def health_check() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse()
+
+
+@app.get("/metrics", tags=["System"])
+async def get_metrics() -> Response:
+    """
+    Prometheus metrics endpoint.
+
+    Exposes application and system metrics in Prometheus format
+    for scraping by Grafana Alloy or other Prometheus-compatible collectors.
+    """
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.post("/signaling/offer", response_model=SDPAnswer, tags=["WebRTC"])
@@ -163,6 +253,7 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
         if peer_manager.pc:
             logger.info("Closing existing peer connection")
             await peer_manager.close()
+            metrics.webrtc_connections_active.dec()
 
         # Create a new video track for this connection
         video_track = camera_manager.create_video_track()
@@ -176,11 +267,21 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
 
         # Process the offer and create answer (this will create peer connection with video track)
         answer_sdp = await peer_manager.handle_offer(offer.sdp)
+
+        # Track successful WebRTC connection
+        metrics.webrtc_connections_total.labels(status="success").inc()
+        metrics.webrtc_connections_active.inc()
+
         logger.info("Returning SDP answer to client")
         return SDPAnswer(sdp=answer_sdp, type="answer")
     except Exception as e:
         logger.error(f"Error handling signaling offer: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
+
+        # Track failed WebRTC connection
+        metrics.webrtc_connections_total.labels(status="failed").inc()
+        metrics.errors_total.labels(error_type="webrtc_offer", component="webrtc").inc()
+
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -250,6 +351,16 @@ async def update_camera_settings(settings: CameraSettings) -> CameraSettingsResp
     if not camera_manager:
         raise HTTPException(status_code=503, detail="Camera manager not initialized")
 
+    # Track which settings changed
+    if settings.awb_mode is not None:
+        metrics.camera_settings_changes_total.labels(setting="awb_mode").inc()
+    if settings.color_gains is not None:
+        metrics.camera_settings_changes_total.labels(setting="color_gains").inc()
+    if settings.framerate is not None:
+        metrics.camera_settings_changes_total.labels(setting="framerate").inc()
+    if settings.width is not None or settings.height is not None:
+        metrics.camera_settings_changes_total.labels(setting="resolution").inc()
+
     result = camera_manager.update_settings(
         awb_mode=settings.awb_mode,
         color_gains=settings.color_gains,
@@ -268,6 +379,16 @@ async def update_camera_settings(settings: CameraSettings) -> CameraSettingsResp
         "awb_mode": camera_manager.awb_mode,
         "color_gains": camera_manager.color_gains,
     }
+
+    # Update camera resolution metric if changed
+    if settings.width is not None or settings.height is not None or settings.framerate is not None:
+        metrics.camera_resolution.info(
+            {
+                "width": str(camera_manager.width),
+                "height": str(camera_manager.height),
+                "framerate": str(camera_manager.framerate),
+            }
+        )
 
     return CameraSettingsResponse(
         success=result["success"],

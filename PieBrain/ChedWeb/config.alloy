@@ -119,6 +119,30 @@ prometheus.relabel "integrations_node_exporter" {
 	}
 }
 
+// ChedWeb Backend Application Metrics
+prometheus.scrape "cheddar_backend" {
+	targets = [{
+		__address__ = "localhost:8000",
+		job         = "cheddar-backend",
+		component   = "backend",
+		host        = "CheddarPi",
+	}]
+	
+	metrics_path   = "/metrics"
+	scrape_interval = "15s"
+	forward_to     = [prometheus.relabel.cheddar_backend.receiver]
+}
+
+prometheus.relabel "cheddar_backend" {
+	forward_to = [prometheus.remote_write.metrics_service.receiver]
+
+	// Add consistent labels
+	rule {
+		target_label = "instance"
+		replacement  = constants.hostname
+	}
+}
+
 // Self-monitoring: Collect Alloy's own metrics
 prometheus.exporter.self "alloy" {}
 
