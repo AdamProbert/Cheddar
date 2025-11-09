@@ -11,6 +11,8 @@ from aiortc.mediastreams import MediaStreamError
 from av import VideoFrame
 from loguru import logger
 
+import metrics
+
 try:
     from picamera2 import Picamera2
     import libcamera
@@ -188,6 +190,7 @@ class PiCameraVideoTrack(VideoStreamTrack):
             # Generate mock frame
             frame = self._generate_mock_frame()
             self._frame_count += 1
+            metrics.camera_frames_total.inc()
 
             # Simulate framerate delay
             await asyncio.sleep(1.0 / self.framerate)
@@ -204,12 +207,21 @@ class PiCameraVideoTrack(VideoStreamTrack):
                 frame.time_base = time_base
 
                 self._frame_count += 1
+                metrics.camera_frames_total.inc()
 
             except Exception as e:
                 logger.error(f"Error capturing frame: {e}")
+                metrics.camera_frame_errors_total.inc()
                 raise MediaStreamError(f"Camera capture failed: {e}")
 
-        # Log framerate periodically
+        # Update FPS metric and log framerate periodically
+        # Update FPS every 30 frames for more responsive metrics
+        if self._frame_count % 30 == 0:
+            elapsed = time.time() - self._start_time
+            actual_fps = self._frame_count / elapsed
+            metrics.camera_fps.set(actual_fps)
+
+        # Log framerate less frequently (every 10 seconds worth of frames)
         if self._frame_count % (self.framerate * 10) == 0:
             elapsed = time.time() - self._start_time
             actual_fps = self._frame_count / elapsed
