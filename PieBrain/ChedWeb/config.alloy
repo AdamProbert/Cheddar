@@ -1,0 +1,160 @@
+// Grafana Alloy Configuration for CheddarPi
+// Collects logs from systemd services and system metrics, sends to Grafana Cloud
+
+// Remote configuration from Grafana Cloud Fleet Management
+remotecfg {
+	url            = "https://fleet-management-prod-023.grafana.net"
+	id             = "CheddarPi"
+	poll_frequency = "60s"
+
+	basic_auth {
+		username = "1431699"
+		password = sys.env("GCLOUD_RW_API_KEY")
+	}
+}
+
+// ========================================
+// LOGS COLLECTION
+// ========================================
+
+// Collect logs from journald for cheddar-backend service
+loki.source.journal "cheddar_backend" {
+	format_as_json = true
+	max_age        = "24h"
+	
+	// Only collect logs from cheddar-backend service
+	matches = "_SYSTEMD_UNIT=cheddar-backend.service"
+	
+	// Add labels to identify the service
+	labels = {
+		job       = "cheddar-backend",
+		component = "backend",
+		host      = "CheddarPi",
+	}
+	
+	forward_to = [loki.write.grafana_cloud_loki.receiver]
+}
+
+// Collect logs from journald for cheddar-frontend service
+loki.source.journal "cheddar_frontend" {
+	format_as_json = true
+	max_age        = "24h"
+	
+	// Only collect logs from cheddar-frontend service
+	matches = "_SYSTEMD_UNIT=cheddar-frontend.service"
+	
+	// Add labels to identify the service
+	labels = {
+		job       = "cheddar-frontend",
+		component = "frontend",
+		host      = "CheddarPi",
+	}
+	
+	forward_to = [loki.write.grafana_cloud_loki.receiver]
+}
+
+// Collect logs from alloy itself (optional but helpful for debugging)
+loki.source.journal "alloy" {
+	format_as_json = true
+	max_age        = "24h"
+	
+	matches = "_SYSTEMD_UNIT=alloy.service"
+	
+	labels = {
+		job       = "alloy",
+		component = "monitoring",
+		host      = "CheddarPi",
+	}
+	
+	forward_to = [loki.write.grafana_cloud_loki.receiver]
+}
+
+// Loki write endpoint - sends logs to Grafana Cloud
+loki.write "grafana_cloud_loki" {
+	endpoint {
+		url = "https://logs-prod-035.grafana.net/loki/api/v1/push"
+
+		basic_auth {
+			username = "1389493"
+			password = sys.env("GCLOUD_RW_API_KEY")
+		}
+	}
+}
+
+// ========================================
+// METRICS COLLECTION
+// ========================================
+
+// Collect host metrics (CPU, memory, disk, network, etc.)
+prometheus.exporter.unix "system" {
+	// Collect filesystem metrics
+	filesystem {
+		// Ignore virtual filesystems
+		fs_types_exclude = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
+	}
+	
+	// Collect network metrics
+	netdev {}
+	
+	// Collect disk I/O metrics
+	diskstats {}
+}
+
+// Scrape the unix exporter metrics
+prometheus.scrape "system_metrics" {
+	targets    = prometheus.exporter.unix.system.targets
+	forward_to = [prometheus.relabel.system.receiver]
+	
+	scrape_interval = "15s"
+}
+
+// Add labels to system metrics
+prometheus.relabel "system" {
+	forward_to = [prometheus.remote_write.metrics_service.receiver]
+	
+	rule {
+		source_labels = ["__name__"]
+		target_label  = "job"
+		replacement   = "cheddar-system"
+	}
+	
+	rule {
+		target_label = "host"
+		replacement  = "CheddarPi"
+	}
+}
+
+// Self-monitoring: Collect Alloy's own metrics
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy_metrics" {
+	targets         = prometheus.exporter.self.alloy.targets
+	forward_to      = [prometheus.relabel.alloy.receiver]
+	scrape_interval = "15s"
+}
+
+prometheus.relabel "alloy" {
+	forward_to = [prometheus.remote_write.metrics_service.receiver]
+	
+	rule {
+		target_label = "job"
+		replacement  = "alloy"
+	}
+	
+	rule {
+		target_label = "host"
+		replacement  = "CheddarPi"
+	}
+}
+
+// Prometheus remote write endpoint - sends metrics to Grafana Cloud
+prometheus.remote_write "metrics_service" {
+	endpoint {
+		url = "https://prometheus-prod-55-prod-gb-south-1.grafana.net/api/prom/push"
+
+		basic_auth {
+			username = "2787633"
+			password = sys.env("GCLOUD_RW_API_KEY")
+		}
+	}
+}
