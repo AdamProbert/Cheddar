@@ -113,23 +113,26 @@ class MotionDriverBridge:
 
         try:
             if cmd.type == "estop" or cmd.type == "stop":
-                # Emergency stop: set all motors to 0
-                for motor_id in range(6):
-                    await self.send_raw(f"MOTOR {motor_id} 0\n")
+                # Emergency stop: stop all motors using proper protocol
+                await self.send_raw("MOTOR ALL STOP\n")
                 logger.warning("Emergency stop executed")
                 return
 
-            # Motor control
+            # Motor control - use FORWARD/BACKWARD commands with speed 0.0-1.0
             if cmd.motors:
                 for motor_id, speed in enumerate(cmd.motors):
-                    # Convert from -1.0/+1.0 to -255/+255
-                    speed_value = int(speed * 255)
-                    await self.send_raw(f"MOTOR {motor_id} {speed_value}\n")
+                    if speed == 0:
+                        await self.send_raw(f"MOTOR {motor_id} STOP\n")
+                    else:
+                        # Determine direction and magnitude
+                        direction = "FORWARD" if speed > 0 else "BACKWARD"
+                        speed_magnitude = abs(speed)  # 0.0 to 1.0
+                        await self.send_raw(f"MOTOR {motor_id} {direction} {speed_magnitude}\n")
 
-            # Servo control
+            # Servo control - ESP32 expects pulse width in microseconds
             if cmd.servos:
-                for servo_id, angle in enumerate(cmd.servos):
-                    await self.send_raw(f"S {servo_id} {angle}\n")
+                for servo_id, pulse_us in enumerate(cmd.servos):
+                    await self.send_raw(f"S {servo_id} {pulse_us}\n")
 
             # Legacy command support (backwards compatibility)
             if cmd.motor_left is not None or cmd.motor_right is not None:
@@ -137,17 +140,25 @@ class MotionDriverBridge:
                 right = cmd.motor_right or 0.0
 
                 # Map to 6-motor layout (3 left, 3 right)
-                left_speed = int(left * 255)
-                right_speed = int(right * 255)
-
                 for motor_id in [0, 1, 2]:  # Left side
-                    await self.send_raw(f"MOTOR {motor_id} {left_speed}\n")
+                    if left == 0:
+                        await self.send_raw(f"MOTOR {motor_id} STOP\n")
+                    else:
+                        direction = "FORWARD" if left > 0 else "BACKWARD"
+                        await self.send_raw(f"MOTOR {motor_id} {direction} {abs(left)}\n")
+
                 for motor_id in [3, 4, 5]:  # Right side
-                    await self.send_raw(f"MOTOR {motor_id} {right_speed}\n")
+                    if right == 0:
+                        await self.send_raw(f"MOTOR {motor_id} STOP\n")
+                    else:
+                        direction = "FORWARD" if right > 0 else "BACKWARD"
+                        await self.send_raw(f"MOTOR {motor_id} {direction} {abs(right)}\n")
 
             if cmd.servo_pan is not None:
+                # Servo expects pulse width in microseconds (e.g., 1000-2000)
                 await self.send_raw(f"S 0 {cmd.servo_pan}\n")
             if cmd.servo_tilt is not None:
+                # Servo expects pulse width in microseconds (e.g., 1000-2000)
                 await self.send_raw(f"S 1 {cmd.servo_tilt}\n")
 
         except Exception as e:
