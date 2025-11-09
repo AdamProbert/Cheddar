@@ -5,8 +5,21 @@ import axios from 'axios'
 import type { SDPOffer, SDPAnswer, ControlCommand, SystemMetrics } from '../types/schemas'
 import { SystemMetricsSchema } from '../types/schemas'
 
-// Use relative URL to go through Vite proxy in dev, or same origin in production
-const API_BASE = ''
+// In development, use empty string to go through Vite proxy
+// In production, construct URL based on current hostname to support remote access
+const getApiBase = (): string => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  // In production, construct URL from window location (works for localhost and remote IP)
+  if (import.meta.env.PROD) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`
+  }
+  // Development mode - use Vite proxy
+  return ''
+}
+
+const API_BASE = getApiBase()
 
 export interface WebRTCCallbacks {
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void
