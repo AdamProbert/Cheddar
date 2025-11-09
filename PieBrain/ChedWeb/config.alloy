@@ -98,7 +98,7 @@ discovery.relabel "integrations_node_exporter" {
 
 	rule {
 		target_label = "job"
-		replacement  = "integrations/cheddar-system"
+		replacement  = "integrations/raspberrypi-node"
 	}
 }
 
