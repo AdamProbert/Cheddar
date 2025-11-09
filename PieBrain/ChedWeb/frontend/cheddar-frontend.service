@@ -14,7 +14,7 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 TimeoutStartSec=300
 
 # Pre-start: Git sync from main branch
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar && git checkout main && git reset --hard HEAD && git pull'
+ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar && git fetch origin && git checkout main && git reset --hard origin/main'
 
 # Install dependencies and build
 ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend && npm install'
