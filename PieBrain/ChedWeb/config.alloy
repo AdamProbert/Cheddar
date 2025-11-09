@@ -89,8 +89,8 @@ loki.write "grafana_cloud_loki" {
 prometheus.exporter.unix "system" {
 	// Collect filesystem metrics
 	filesystem {
-		// Ignore virtual filesystems
-		fs_types_exclude = ["tmpfs", "devtmpfs", "devfs", "iso9660", "overlay", "aufs", "squashfs"]
+		// Ignore virtual filesystems (regex pattern)
+		fs_types_exclude = "^(tmpfs|devtmpfs|devfs|iso9660|overlay|aufs|squashfs)$"
 	}
 	
 	// Collect network metrics
