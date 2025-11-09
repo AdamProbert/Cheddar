@@ -10,6 +10,7 @@ sudo ./install_services.sh
 ```
 
 This will:
+
 - Install both backend and frontend systemd services
 - Enable them to start on boot
 - Start them immediately
@@ -18,6 +19,7 @@ This will:
 ## 📦 What Gets Installed
 
 ### Backend Service (`cheddar-backend.service`)
+
 - **Port:** 8000
 - **Working Directory:** `/home/adamprobert/Cheddar/PieBrain/ChedWeb/backend`
 - **Process:** uvicorn serving FastAPI app
@@ -25,6 +27,7 @@ This will:
 - **Logs:** `journalctl -u cheddar-backend`
 
 ### Frontend Service (`cheddar-frontend.service`)
+
 - **Port:** 3000
 - **Working Directory:** `/home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend`
 - **Process:** Production build served via `npx serve`
@@ -35,30 +38,35 @@ This will:
 ## 🔧 Service Management
 
 ### View Service Status
+
 ```bash
 sudo systemctl status cheddar-backend
 sudo systemctl status cheddar-frontend
 ```
 
 ### Start Services
+
 ```bash
 sudo systemctl start cheddar-backend
 sudo systemctl start cheddar-frontend
 ```
 
 ### Stop Services
+
 ```bash
 sudo systemctl stop cheddar-backend
 sudo systemctl stop cheddar-frontend
 ```
 
 ### Restart Services
+
 ```bash
 sudo systemctl restart cheddar-backend
 sudo systemctl restart cheddar-frontend
 ```
 
 ### Enable/Disable Auto-Start on Boot
+
 ```bash
 # Enable (already done by install script)
 sudo systemctl enable cheddar-backend
@@ -72,6 +80,7 @@ sudo systemctl disable cheddar-frontend
 ## 📝 Viewing Logs
 
 ### Real-time Log Streaming
+
 ```bash
 # Backend logs
 journalctl -u cheddar-backend -f
@@ -84,6 +93,7 @@ journalctl -u cheddar-backend -u cheddar-frontend -f
 ```
 
 ### View Recent Logs
+
 ```bash
 # Last 50 lines
 journalctl -u cheddar-backend -n 50
@@ -96,6 +106,7 @@ journalctl -u cheddar-backend --since "1 hour ago"
 ```
 
 ### Filter by Log Level
+
 ```bash
 # Only errors
 journalctl -u cheddar-backend -p err
@@ -114,6 +125,7 @@ Both services automatically sync code on startup:
 4. **Service starts** - Launches with fresh code
 
 To deploy new changes:
+
 ```bash
 # Push to GitHub from your dev machine
 git push origin main
@@ -126,6 +138,7 @@ sudo systemctl restart cheddar-frontend
 ## 🛡️ Restart Policy
 
 Both services are configured with:
+
 - **Restart on failure:** Automatically restarts if process crashes
 - **Restart attempts:** Up to 5 restarts within 10 minutes
 - **Restart delay:** 10 seconds between attempts
@@ -140,6 +153,7 @@ Once services are running:
 - **API Documentation:** `http://<raspberry-pi-ip>:8000/docs`
 
 Find your Pi's IP:
+
 ```bash
 hostname -I
 ```
@@ -147,6 +161,7 @@ hostname -I
 ## 🔍 Troubleshooting
 
 ### Service won't start
+
 ```bash
 # Check service status for errors
 sudo systemctl status cheddar-backend
@@ -160,7 +175,9 @@ sudo lsof -i :3000
 ```
 
 ### Git sync fails
+
 Ensure the Pi has SSH keys configured for GitHub:
+
 ```bash
 # Check if SSH key exists
 ls -la ~/.ssh/id_*.pub
@@ -174,12 +191,15 @@ cat ~/.ssh/id_ed25519.pub
 ```
 
 ### Backend can't find camera
+
 Check camera is enabled:
+
 ```bash
 rpicam-hello --version
 ```
 
 If needed, enable via raspi-config:
+
 ```bash
 sudo raspi-config
 # Interface Options → Camera → Enable
@@ -187,20 +207,25 @@ sudo reboot
 ```
 
 ### Frontend build fails
+
 Ensure Node.js is installed:
+
 ```bash
 node --version  # Should be 18+
 npm --version
 ```
 
 If not installed:
+
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
 ### Python dependencies missing
+
 The backend virtual environment should be created by the setup script. If missing:
+
 ```bash
 cd ~/Cheddar/PieBrain/ChedWeb/backend
 python3 -m venv .venv
@@ -235,16 +260,21 @@ sudo systemctl daemon-reload
 ## 🐛 Common Issues
 
 ### "Failed to start cheddar-frontend.service: Unit cheddar-backend.service not found"
+
 The frontend depends on the backend. Ensure both service files are installed:
+
 ```bash
 ls -l /etc/systemd/system/cheddar-*.service
 ```
 
 ### "git pull" fails with authentication error
+
 Set up SSH keys (see Git sync fails section above) or configure git credentials.
 
 ### Services restart constantly
+
 Check logs for the root cause:
+
 ```bash
 journalctl -u cheddar-backend -n 200
 ```
