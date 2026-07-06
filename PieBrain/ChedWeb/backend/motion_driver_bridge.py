@@ -16,46 +16,136 @@ class MotionDriverBridge:
     commands that the ESP32 understands.
     """
 
-    def __init__(self, port: str, baudrate: int = 115200) -> None:
+    def __init__(
+        self,
+        port: str,
+        baudrate: int = 115200,
+        heartbeat_interval: float = 0.2,
+        reconnect_interval: float = 2.0,
+    ) -> None:
         """Initialize serial bridge.
 
         Args:
             port: Serial port path (e.g., '/dev/ttyUSB0', '/dev/serial0')
             baudrate: Serial baud rate (default: 115200)
+            heartbeat_interval: Seconds between PING heartbeats. Must stay well
+                under the ESP32 firmware deadman window so a healthy link keeps
+                the motors enabled.
+            reconnect_interval: Seconds between reconnection attempts after the
+                serial link drops.
         """
         self.port = port
         self.baudrate = baudrate
+        self.heartbeat_interval = heartbeat_interval
+        self.reconnect_interval = reconnect_interval
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self.connected = False
+        self._closing = False
+        self._supervisor_task: Optional[asyncio.Task] = None
+        self._write_lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        """Open serial connection to MotionDriver."""
-        try:
-            logger.info(f"Connecting to MotionDriver on {self.port} @ {self.baudrate} baud")
-            self.reader, self.writer = await serial_asyncio.open_serial_connection(
-                url=self.port, baudrate=self.baudrate
-            )
-            self.connected = True
-            logger.info("MotionDriver connected")
+        """Open the serial link and start the background supervisor.
 
-            # Send ping to verify connection
-            await self.send_raw("PING\n")
-            response = await self.read_line(timeout=2.0)
-            if response and "PONG" in response:
-                logger.success("MotionDriver responded to PING")
-            else:
-                logger.warning(f"Unexpected response to PING: {response}")
+        The supervisor keeps the link alive with periodic heartbeats and
+        automatically reconnects if it drops (e.g. the ESP32 resets or the USB
+        adapter re-enumerates). This does not raise on an initial failure - the
+        supervisor keeps retrying in the background.
+        """
+        self._closing = False
+        try:
+            await self._open()
         except Exception as e:
-            logger.error(f"Failed to connect to MotionDriver: {e}")
+            logger.error(f"Initial MotionDriver connect failed: {e}; will keep retrying")
+            await self._cleanup_transport()
             self.connected = False
-            raise
+        if self._supervisor_task is None:
+            self._supervisor_task = asyncio.create_task(self._supervise())
+
+    async def _open(self) -> None:
+        """Open the serial connection and verify it with a PING/PONG handshake."""
+        logger.info(f"Connecting to MotionDriver on {self.port} @ {self.baudrate} baud")
+        self.reader, self.writer = await serial_asyncio.open_serial_connection(
+            url=self.port, baudrate=self.baudrate
+        )
+        self.connected = True
+        logger.info("MotionDriver connected")
+
+        # Send ping to verify connection
+        await self.send_raw("PING\n")
+        response = await self.read_line(timeout=2.0)
+        if response and "PONG" in response:
+            logger.success("MotionDriver responded to PING")
+        else:
+            logger.warning(f"Unexpected response to PING: {response}")
+
+    async def _cleanup_transport(self) -> None:
+        """Close and discard the current serial transport, if any."""
+        writer = self.writer
+        self.reader = None
+        self.writer = None
+        if writer is not None:
+            try:
+                writer.close()
+                await asyncio.wait_for(writer.wait_closed(), timeout=1.0)
+            except Exception:
+                pass
+
+    async def _supervise(self) -> None:
+        """Keep the link alive: heartbeat while connected, reconnect when not."""
+        while not self._closing:
+            if not self.connected:
+                try:
+                    await self._open()
+                except Exception as e:
+                    logger.warning(
+                        f"MotionDriver reconnect failed: {e}; retrying in {self.reconnect_interval}s"
+                    )
+                    await self._cleanup_transport()
+                    self.connected = False
+                    await asyncio.sleep(self.reconnect_interval)
+                    continue
+
+            # Connected: drain replies and heartbeat until the link drops. A
+            # failed read/write flips self.connected to False and breaks out.
+            reader_task = asyncio.create_task(self._reader_loop())
+            try:
+                while not self._closing and self.connected:
+                    await self.send_raw("PING\n")
+                    await asyncio.sleep(self.heartbeat_interval)
+            finally:
+                reader_task.cancel()
+                try:
+                    await reader_task
+                except asyncio.CancelledError:
+                    pass
+
+            if not self.connected and not self._closing:
+                logger.warning("MotionDriver link lost; attempting to reconnect")
+                await self._cleanup_transport()
+                await asyncio.sleep(self.reconnect_interval)
+
+    async def _reader_loop(self) -> None:
+        """Continuously read and discard incoming lines.
+
+        The ESP32 replies to every command and heartbeat, so something has to
+        drain the buffer; this also detects a dropped link via EOF.
+        """
+        while not self._closing and self.connected:
+            await self.read_line(timeout=1.0)
 
     async def disconnect(self) -> None:
-        """Close serial connection."""
-        if self.writer:
-            self.writer.close()
-            await self.writer.wait_closed()
+        """Stop the supervisor and close the serial connection."""
+        self._closing = True
+        if self._supervisor_task is not None:
+            self._supervisor_task.cancel()
+            try:
+                await self._supervisor_task
+            except asyncio.CancelledError:
+                pass
+            self._supervisor_task = None
+        await self._cleanup_transport()
         self.connected = False
         logger.info("MotionDriver disconnected")
 
@@ -70,8 +160,9 @@ class MotionDriverBridge:
             return
 
         try:
-            self.writer.write(command.encode("utf-8"))
-            await self.writer.drain()
+            async with self._write_lock:
+                self.writer.write(command.encode("utf-8"))
+                await self.writer.drain()
             logger.debug(f"Sent: {command.strip()}")
         except Exception as e:
             logger.error(f"Failed to send command: {e}")
@@ -91,6 +182,11 @@ class MotionDriverBridge:
 
         try:
             line_bytes = await asyncio.wait_for(self.reader.readline(), timeout=timeout)
+            if line_bytes == b"":
+                # EOF - the serial device went away
+                logger.warning("MotionDriver serial reached EOF (device disconnected)")
+                self.connected = False
+                return None
             line = line_bytes.decode("utf-8", errors="ignore").strip()
             logger.debug(f"Received: {line}")
             return line

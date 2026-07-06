@@ -90,7 +90,13 @@ class PeerManager:
         @channel.on("close")
         def on_close() -> None:
             logger.info(f"DataChannel '{channel.label}' closed")
-            # TODO: Implement deadman switch - stop all motors on disconnect
+            # Deadman: the control link just dropped. The firmware deadman only
+            # covers Pi->ESP32 silence and the backend keeps sending heartbeats,
+            # so we must explicitly stop all motors here.
+            if self.motion_driver:
+                logger.warning("Control channel closed - stopping all motors")
+                loop = asyncio.get_event_loop()
+                loop.create_task(self.motion_driver.send_raw("MOTOR ALL STOP\n"))
 
         # Check if channel is already open and start metrics immediately
         if channel.readyState == "open":
@@ -178,6 +184,13 @@ class PeerManager:
             @self.pc.on("connectionstatechange")
             async def on_connectionstatechange() -> None:
                 logger.info(f"Connection state: {self.pc.connectionState}")
+                if self.pc.connectionState in ("failed", "disconnected", "closed"):
+                    # Lost the peer - estop before any teardown
+                    if self.motion_driver:
+                        logger.warning(
+                            f"Peer connection {self.pc.connectionState} - stopping all motors"
+                        )
+                        await self.motion_driver.send_raw("MOTOR ALL STOP\n")
                 if self.pc.connectionState == "failed":
                     await self.close()
 

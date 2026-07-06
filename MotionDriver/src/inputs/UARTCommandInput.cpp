@@ -20,7 +20,10 @@ namespace inputs
           m_servoController(servoController),
           m_motorController(motorController),
           m_buffer{0},
-          m_bufferLength(0)
+          m_bufferLength(0),
+          m_lastCommandMillis(0),
+          m_hasReceivedCommand(false),
+          m_failsafeActive(false)
     {
     }
 
@@ -46,6 +49,11 @@ namespace inputs
                 if (m_bufferLength > 0)
                 {
                     m_buffer[m_bufferLength] = '\0';
+                    // A complete command arrived: feed the deadman and clear any
+                    // active failsafe so the link is considered alive again.
+                    m_lastCommandMillis = millis();
+                    m_hasReceivedCommand = true;
+                    m_failsafeActive = false;
                     handleLine();
                 }
                 resetBuffer();
@@ -60,6 +68,24 @@ namespace inputs
             }
 
             m_buffer[m_bufferLength++] = incoming;
+        }
+    }
+
+    void UARTCommandInput::update(unsigned long nowMillis)
+    {
+        // Deadman failsafe: once we have started receiving commands, stop the
+        // motors if the link goes silent for longer than the deadman window.
+        // Servos are intentionally left holding their last position.
+        if (!m_hasReceivedCommand || m_failsafeActive)
+        {
+            return;
+        }
+
+        if (nowMillis - m_lastCommandMillis >= kDeadmanTimeoutMs)
+        {
+            m_failsafeActive = true;
+            m_motorController.stopAll();
+            m_serial.println("FAILSAFE STOP: link lost");
         }
     }
 

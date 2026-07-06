@@ -90,14 +90,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         motion_driver = MotionDriverBridge(
             port=settings.serial_port,
             baudrate=settings.serial_baudrate,
+            heartbeat_interval=settings.serial_heartbeat_interval,
+            reconnect_interval=settings.serial_reconnect_interval,
         )
 
     try:
         await motion_driver.connect()
     except Exception as e:
-        logger.error(f"Failed to connect to MotionDriver: {e}")
-        logger.warning("Continuing without MotionDriver - commands will be ignored")
-        motion_driver = None
+        # The bridge supervisor keeps retrying in the background, so keep the
+        # instance around rather than dropping to None.
+        logger.error(f"MotionDriver initial connect error: {e}")
+        logger.warning("MotionDriver will keep retrying to connect in the background")
 
     # Initialize peer manager with motion driver
     peer_manager = PeerManager(
@@ -107,7 +110,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize metrics
     metrics.camera_enabled.set(1 if settings.camera_enabled else 0)
-    metrics.motion_driver_connected.set(1 if motion_driver else 0)
+    metrics.motion_driver_connected.set(
+        1 if (motion_driver and motion_driver.is_connected()) else 0
+    )
     if camera_manager:
         metrics.camera_resolution.info(
             {

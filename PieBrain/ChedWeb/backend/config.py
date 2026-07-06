@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     serial_baudrate: int = 115200
     serial_timeout: float = 1.0
     serial_mock: bool = False  # Use mock bridge for testing without hardware
+    # Heartbeat sent to the ESP32 to keep its deadman satisfied. Keep this well
+    # under the firmware deadman window (~1s) so brief hiccups don't trip it.
+    serial_heartbeat_interval: float = 0.2
+    # Delay between serial reconnection attempts after the link drops.
+    serial_reconnect_interval: float = 2.0
 
     # Camera settings
     camera_enabled: bool = True
@@ -34,8 +39,10 @@ class Settings(BaseSettings):
     camera_framerate: int = 30
     camera_flip_180: bool = False  # Flip camera 180 degrees (hflip + vflip)
 
-    # Safety (placeholders)
-    deadman_timeout_ms: int = 500
+    # Safety
+    # The authoritative deadman lives in the ESP32 firmware; this mirrors that
+    # window for reference. The backend heartbeat (above) keeps it fed.
+    deadman_timeout_ms: int = 1000
     command_rate_limit_hz: int = 50
 
     @property
