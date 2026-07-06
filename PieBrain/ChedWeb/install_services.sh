@@ -40,6 +40,15 @@ cp "$FRONTEND_SERVICE" /etc/systemd/system/cheddar-frontend.service
 echo "🔄 Reloading systemd daemon..."
 systemctl daemon-reload
 
+# Build the frontend production bundle ONCE, as the invoking (non-root) user.
+# The cheddar-frontend.service serves the pre-built dist/ and does NOT build on
+# boot, because `npm install && npm run build` is too slow to finish within a
+# service start timeout on a Pi 3B (it caused a start-pre timeout -> restart loop).
+echo "🏗️  Building frontend production bundle (npm install + npm run build)..."
+echo "    (this can take several minutes on a Raspberry Pi)"
+BUILD_USER="${SUDO_USER:-adamprobert}"
+sudo -u "$BUILD_USER" bash -c "cd '$SCRIPT_DIR/frontend' && npm install && npm run build"
+
 # Enable services (start on boot)
 echo "✅ Enabling services to start on boot..."
 systemctl enable cheddar-backend.service

@@ -10,17 +10,18 @@ User=adamprobert
 WorkingDirectory=/home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Extended timeout for npm install and build on Raspberry Pi
-TimeoutStartSec=300
+# The frontend is intentionally NOT built on boot. Running
+# `npm install && npm run build` on a Raspberry Pi 3B takes longer than any
+# reasonable start timeout, which caused a start-pre timeout -> restart loop
+# and the UI never came up on :3000. The production bundle in dist/ is built
+# ahead of time instead:
+#   - once by install_services.sh during setup, and
+#   - after any frontend change via ./build-frontend.sh
+# This service only serves the pre-built dist/.
+# (npx may download `serve` on first run, so allow a little startup headroom.)
+TimeoutStartSec=120
 
-# Pre-start: Git sync from main branch
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar && git fetch origin && git checkout main && git reset --hard origin/main'
-
-# Install dependencies and build
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend && npm install'
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/frontend && npm run build'
-
-# Serve production build on port 3000
+# Serve the pre-built production bundle on port 3000
 ExecStart=/usr/bin/npx serve -s dist -l 3000
 
 # Restart configuration:
