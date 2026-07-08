@@ -105,13 +105,16 @@ class PowerMonitor:
     ``available`` goes False and the Debug tab shows the panel as unavailable.
     """
 
-    def __init__(self, poll_interval: float = 2.0, history: int = 60) -> None:
+    def __init__(self, poll_interval: float = 0.5, history: int = 120) -> None:
+        # Poll fast enough (0.5s) to catch motor-inrush dips and correlate them
+        # with commands on the Debug tab timeline. History spans ~60s at 0.5s.
         self.poll_interval = poll_interval
         self._available: bool | None = None
         self._raw: str | None = None
         self._value: int = 0
         self._history: deque[dict[str, Any]] = deque(maxlen=history)
         self._events = 0
+        self._last_event_ts: float | None = None
         self._prev_uv = False
         self._task: asyncio.Task | None = None
         self._closing = False
@@ -169,16 +172,18 @@ class PowerMonitor:
 
         self._available = True
         self._raw = text.split("=", 1)[1]
+        now_ms = time.time() * 1000
         uv_now = bool(self._value & (1 << _FLAG_BITS["undervoltage_now"]))
         # Count a fresh event on the rising edge of under-voltage.
         if uv_now and not self._prev_uv:
             self._events += 1
+            self._last_event_ts = now_ms
         self._prev_uv = uv_now
-        self._history.append({"ts": time.time() * 1000, "uv": uv_now})
+        self._history.append({"ts": now_ms, "uv": uv_now})
 
     def snapshot(self) -> dict[str, Any]:
         if not self._available:
-            return {"available": False, "history": [], "events": 0, "flags": {}}
+            return {"available": False, "history": [], "events": 0, "flags": {}, "last_event_ts": None}
         flags = {name: bool(self._value & (1 << bit)) for name, bit in _FLAG_BITS.items()}
         return {
             "available": True,
@@ -186,6 +191,7 @@ class PowerMonitor:
             "flags": flags,
             "history": list(self._history),
             "events": self._events,
+            "last_event_ts": self._last_event_ts,
         }
 
 

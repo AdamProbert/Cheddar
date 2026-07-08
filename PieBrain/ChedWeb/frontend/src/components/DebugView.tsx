@@ -2,7 +2,7 @@
  * Debug tab - direct actuator control + live link/power/serial diagnostics.
  * Owns the /ws/debug connection and fans state out to the panels.
  */
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { DebugSocket } from '@/utils/debugSocket'
 import type { SerialEvent, LogRecord, HeartbeatStats, PowerSnapshot } from '@/types/schemas'
 import { ActuatorControls } from './debug/ActuatorControls'
@@ -18,6 +18,12 @@ const MAX_RTT = 60
 export interface RttPoint {
   i: number
   rtt: number
+}
+
+export interface MotorEvent {
+  ts: number
+  motion: boolean
+  line: string
 }
 
 export function DebugView() {
@@ -66,6 +72,15 @@ export function DebugView() {
   }, [pushRtt])
 
   const socket = socketRef.current
+
+  // Motor commands pulled from the serial TX stream, for the power timeline.
+  const motorEvents = useMemo<MotorEvent[]>(
+    () =>
+      serial
+        .filter(e => e.dir === 'tx' && e.line.toUpperCase().startsWith('MOTOR'))
+        .map(e => ({ ts: e.ts, motion: /FORWARD|BACKWARD|START/i.test(e.line), line: e.line })),
+    [serial]
+  )
 
   return (
     <div className="space-y-6">
@@ -139,7 +154,7 @@ export function DebugView() {
 
         <div className="space-y-6">
           <HeartbeatCard heartbeat={heartbeat} rttHistory={rttHistory} connected={wsOpen} />
-          <PowerCard power={power} />
+          <PowerCard power={power} motorEvents={motorEvents} />
           <CurrentDrawCard />
         </div>
       </div>

@@ -104,6 +104,7 @@ export const PowerSnapshotSchema = z.object({
   flags: PowerFlagsSchema.partial().optional(),
   history: z.array(z.object({ ts: z.number(), uv: z.boolean() })).optional(),
   events: z.number().optional(),
+  last_event_ts: z.number().nullable().optional(),
 })
 
 export type SerialEvent = z.infer<typeof SerialEventSchema>
