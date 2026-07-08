@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from config import SerialConfig
-from serial_bridge import CommandError, SerialBridge, create_bridge
+from serial_bridge import CommandError, Heartbeat, SerialBridge, create_bridge
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 _LOGGER = logging.getLogger("motiondriver.webapp")
@@ -23,7 +23,9 @@ if not _static_dir.exists():  # pragma: no cover - guards against missing assets
 
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
-_bridge = create_bridge(SerialConfig())
+_config = SerialConfig()
+_bridge = create_bridge(_config)
+_heartbeat = Heartbeat(_bridge, interval=_config.heartbeat_interval)
 
 
 class ServoCommand(BaseModel):
@@ -122,7 +124,14 @@ async def api_log(command: LogRequest) -> JSONResponse:
     return JSONResponse({"status": "ok", "response": response})
 
 
+@app.on_event("startup")
+def startup_event() -> None:
+    _LOGGER.info("Starting MotionDriver heartbeat")
+    _heartbeat.start()
+
+
 @app.on_event("shutdown")
 def shutdown_event() -> None:
     _LOGGER.info("Shutting down serial bridge")
+    _heartbeat.stop()
     _bridge.close()

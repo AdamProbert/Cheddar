@@ -1,0 +1,67 @@
+# PieBrain (CheddarPi) task runner — see ChedWeb/DEPLOYMENT.md
+#
+# Two kinds of recipes live here:
+#   * `deploy` / `build-frontend` run on your DEV machine (e.g. Windows) and push
+#     to the Pi over SSH. Building on a Raspberry Pi 3B is painfully slow, so we
+#     build the frontend bundle here and upload the pre-built dist/ instead.
+#   * everything else (restart / logs / status / install) is meant to run ON the
+#     Pi, where it talks to systemd directly.
+#
+# Run `just` with no arguments to list recipes.
+
+# The Pi and its checkout (used by the dev-machine recipes). SSH uses the default
+# key at ~/.ssh/id_ed25519; see PieBrain/SSH_ACCESS.md.
+pi := "adamprobert@cheddarpi"
+remote := "/home/adamprobert/Cheddar/PieBrain/ChedWeb"
+
+# Show available recipes
+default:
+    @just --list
+
+
+# === Run on your dev machine (Windows) ===
+
+# Build the frontend here and deploy the bundle to the Pi, then restart it.
+deploy: build-frontend
+    ssh {{pi}} "rm -rf {{remote}}/frontend/dist"
+    scp -r -q ChedWeb/frontend/dist {{pi}}:{{remote}}/frontend/
+    ssh -t {{pi}} "sudo systemctl restart cheddar-frontend.service"
+    @echo "Deployed. UI: http://cheddarpi:3000"
+
+# Build the production frontend bundle (frontend/dist) on this machine.
+build-frontend:
+    cd ChedWeb/frontend && npm install && npm run build
+
+# Open an SSH shell on the Pi.
+ssh:
+    ssh -t {{pi}}
+
+
+# === Run on the Pi ===
+
+# Rebuild the frontend on the Pi itself (slow on a 3B — prefer `deploy` from a PC).
+build:
+    ./ChedWeb/build-frontend.sh
+
+# Restart both services.
+restart:
+    sudo systemctl restart cheddar-backend cheddar-frontend
+
+# Restart just the frontend / backend.
+restart-frontend:
+    sudo systemctl restart cheddar-frontend
+
+restart-backend:
+    sudo systemctl restart cheddar-backend
+
+# Show service status.
+status:
+    systemctl status cheddar-backend cheddar-frontend --no-pager
+
+# Follow logs from both services.
+logs:
+    journalctl -u cheddar-backend -u cheddar-frontend -f
+
+# Install/refresh the systemd services (runs install_services.sh).
+install:
+    cd ChedWeb && sudo ./install_services.sh

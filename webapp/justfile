@@ -1,0 +1,41 @@
+# Local web control (FastAPI) — see README.md
+#
+# Usage: run `just` from inside the webapp/ directory to list recipes.
+# All runtime config lives in `.env` (copy from `.env.example`); it is
+# auto-loaded into the environment for every recipe.
+
+set dotenv-load := true
+
+# Interpreter / paths (override on the command line, e.g. `just python=python3.11 venv`)
+python := "python3"
+venv_dir := ".venv"
+venv_bin := venv_dir / "Scripts"
+
+# Show available recipes
+default:
+    @just --list
+
+# Create the virtualenv and install dependencies
+install: venv
+    {{venv_bin}}/pip install -r requirements.txt
+
+# Create the virtualenv if it does not already exist
+venv:
+    test -d {{venv_dir}} || {{python}} -m venv {{venv_dir}}
+
+# Detect the rover's COM port and write it to .env (pass a port to set it explicitly)
+port device="":
+    {{venv_bin}}/python scripts/detect_port.py {{device}}
+
+# Run the web server with auto-reload (config from .env)
+run:
+    {{venv_bin}}/uvicorn main:app --reload
+
+# Run the server against an in-memory stub (no serial hardware needed)
+dev:
+    MOTIONDRIVER_DRY_RUN=1 {{venv_bin}}/uvicorn main:app --reload
+
+# Run the test suite
+test:
+    {{venv_bin}}/pytest tests
+

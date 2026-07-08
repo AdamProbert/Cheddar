@@ -16,6 +16,12 @@ class SerialConfig:
     port: str = os.getenv("MOTIONDRIVER_SERIAL_PORT", "auto")
     baudrate: int = int(os.getenv("MOTIONDRIVER_SERIAL_BAUDRATE", "115200"))
     timeout: float = float(os.getenv("MOTIONDRIVER_SERIAL_TIMEOUT", "1.0"))
+    # Background PING cadence that keeps the firmware deadman fed. Must stay
+    # well under the ESP32's deadman window (1.0s) so a healthy link keeps the
+    # motors enabled. Set to 0 (or below) to disable the heartbeat entirely.
+    heartbeat_interval: float = float(
+        os.getenv("MOTIONDRIVER_HEARTBEAT_INTERVAL", "0.2")
+    )
     dry_run: bool = _as_bool(os.getenv("MOTIONDRIVER_DRY_RUN"), default=False)
     log_traffic: bool = _as_bool(os.getenv("MOTIONDRIVER_LOG_TRAFFIC"), default=True)
 

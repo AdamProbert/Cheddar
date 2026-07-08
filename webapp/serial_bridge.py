@@ -129,11 +129,13 @@ class SerialBridge:
         command: str,
         expect_response: bool = True,
         timeout: Optional[float] = None,
+        quiet: bool = False,
     ) -> Optional[str]:
         timeout = timeout if timeout is not None else self._config.timeout
+        log = self._config.log_traffic and not quiet
         with self._lock:
             transport = self._ensure_transport()
-            if self._config.log_traffic:
+            if log:
                 _LOGGER.info("-> %s", command)
             transport.write_line(command)
             if not expect_response:
@@ -144,14 +146,14 @@ class SerialBridge:
                     f"No response received for command '{command}' within {timeout}s"
                 )
             response = response.strip()
-            if self._config.log_traffic:
+            if log:
                 _LOGGER.info("<- %s", response)
             if response.upper().startswith("ERR"):
                 raise CommandError(response)
             return response
 
-    def ping(self) -> str:
-        return self.send_command("PING") or ""
+    def ping(self, quiet: bool = False) -> str:
+        return self.send_command("PING", quiet=quiet) or ""
 
     def set_servo(self, channel: int, pulse_us: int) -> str:
         self._validate_channel(channel)
@@ -221,6 +223,60 @@ class SerialBridge:
         if upper not in {"FORWARD", "BACKWARD"}:
             raise ValueError("direction must be FORWARD or BACKWARD")
         return upper
+
+
+class Heartbeat:
+    """Background thread that keeps the firmware deadman fed with PINGs.
+
+    The ESP32 MotionDriver stops all motors if it sees no serial traffic for
+    ~1s (deadman failsafe). This webapp only sends one-shot commands, so without
+    a heartbeat a `MOTOR ... FORWARD` would be stopped ~1s later. This thread
+    sends a quiet PING every ``interval`` seconds while the server runs, so a
+    motor keeps running until an explicit STOP. If the backend dies or the link
+    drops, the PINGs stop and the firmware deadman correctly stops the motors.
+    """
+
+    def __init__(self, bridge: SerialBridge, interval: float = 0.2) -> None:
+        self._bridge = bridge
+        self._interval = interval
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._healthy: Optional[bool] = None
+
+    def start(self) -> None:
+        if self._interval <= 0:
+            _LOGGER.info("Heartbeat disabled (interval <= 0)")
+            return
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(
+            target=self._run, name="motiondriver-heartbeat", daemon=True
+        )
+        self._thread.start()
+        _LOGGER.info("Heartbeat started (every %.0fms)", self._interval * 1000)
+
+    def _run(self) -> None:
+        # Event.wait returns True once stop() is called; False on each timeout.
+        while not self._stop.wait(self._interval):
+            try:
+                self._bridge.ping(quiet=True)
+                if self._healthy is not True:
+                    if self._healthy is False:
+                        _LOGGER.info("Heartbeat link recovered")
+                    self._healthy = True
+            except Exception as exc:  # keep the heartbeat alive through any error
+                if self._healthy is not False:
+                    _LOGGER.warning("Heartbeat ping failing: %s", exc)
+                    self._healthy = False
+
+    def stop(self) -> None:
+        self._stop.set()
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=1.0)
+            self._thread = None
+        _LOGGER.info("Heartbeat stopped")
 
 
 def create_bridge(
