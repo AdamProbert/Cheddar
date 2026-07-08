@@ -24,7 +24,13 @@ export interface MetricsHistoryPoint {
 // Keep last N data points (60 points = 1 minute at 1Hz)
 const MAX_HISTORY_POINTS = 60
 
+export type ActiveTab = 'control' | 'debug'
+
 interface AppState {
+  // Active view tab
+  activeTab: ActiveTab
+  setActiveTab: (tab: ActiveTab) => void
+
   // Connection
   connectionState: ConnectionState
   setConnectionState: (state: ConnectionState) => void
@@ -56,6 +62,10 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>(set => ({
+  // Active view tab
+  activeTab: 'control',
+  setActiveTab: tab => set({ activeTab: tab }),
+
   // Connection
   connectionState: 'disconnected',
   setConnectionState: state => set({ connectionState: state }),

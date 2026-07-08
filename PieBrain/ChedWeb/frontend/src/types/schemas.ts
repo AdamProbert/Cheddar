@@ -60,6 +60,58 @@ export const CameraSettingsSchema = z.object({
   color_gains: z.tuple([z.number(), z.number()]),
 })
 
+// ---------------------------------------------------------------------------
+// Debug tab (/ws/debug) message schemas
+// ---------------------------------------------------------------------------
+export const SerialEventSchema = z.object({
+  dir: z.enum(['tx', 'rx']),
+  line: z.string(),
+  ts: z.number(),
+})
+
+export const LogRecordSchema = z.object({
+  ts: z.number(),
+  level: z.string(),
+  name: z.string(),
+  message: z.string(),
+})
+
+export const HeartbeatStatsSchema = z.object({
+  available: z.boolean().optional(),
+  connected: z.boolean().optional(),
+  rtt_ms: z.number().nullable().optional(),
+  last_pong_age_s: z.number().nullable().optional(),
+  rate_hz: z.number().optional(),
+  missed_60s: z.number().optional(),
+  interval_ms: z.number().optional(),
+  deadman_ms: z.number().optional(),
+})
+
+export const PowerFlagsSchema = z.object({
+  undervoltage_now: z.boolean(),
+  freq_capped_now: z.boolean(),
+  throttled_now: z.boolean(),
+  soft_temp_now: z.boolean(),
+  undervoltage_occurred: z.boolean(),
+  freq_capped_occurred: z.boolean(),
+  throttled_occurred: z.boolean(),
+  soft_temp_occurred: z.boolean(),
+})
+
+export const PowerSnapshotSchema = z.object({
+  available: z.boolean(),
+  raw: z.string().optional(),
+  flags: PowerFlagsSchema.partial().optional(),
+  history: z.array(z.object({ ts: z.number(), uv: z.boolean() })).optional(),
+  events: z.number().optional(),
+})
+
+export type SerialEvent = z.infer<typeof SerialEventSchema>
+export type LogRecord = z.infer<typeof LogRecordSchema>
+export type HeartbeatStats = z.infer<typeof HeartbeatStatsSchema>
+export type PowerFlags = z.infer<typeof PowerFlagsSchema>
+export type PowerSnapshot = z.infer<typeof PowerSnapshotSchema>
+
 // Type inference
 export type SDPOffer = z.infer<typeof SDPOfferSchema>
 export type SDPAnswer = z.infer<typeof SDPAnswerSchema>

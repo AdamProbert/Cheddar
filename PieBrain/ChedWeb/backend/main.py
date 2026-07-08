@@ -28,6 +28,8 @@ from peer_manager import PeerManager
 from camera import CameraManager
 from motion_driver_bridge import MotionDriverBridge, MockMotionDriverBridge
 import metrics
+import debug_hub
+from debug_hub import PowerMonitor
 
 
 # Configure structured logging
@@ -42,6 +44,7 @@ logger.add(
 peer_manager: PeerManager | None = None
 camera_manager: CameraManager | None = None
 motion_driver: MotionDriverBridge | MockMotionDriverBridge | None = None
+power_monitor: PowerMonitor | None = None
 
 
 async def update_metrics_periodically():
@@ -58,8 +61,10 @@ async def update_metrics_periodically():
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler for startup/shutdown."""
-    global peer_manager, camera_manager, motion_driver
+    global peer_manager, camera_manager, motion_driver, power_monitor
     logger.info("Starting ChedWeb backend...")
+    # Mirror application logs into the Debug tab's live log stream.
+    debug_hub.install_log_capture(level=settings.log_level)
     logger.info(f"Debug mode: {settings.debug}")
     logger.info(f"ICE servers: {settings.ice_servers}")
     logger.info(f"Camera enabled: {settings.camera_enabled}")
@@ -125,6 +130,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start background metrics update task
     metrics_task = asyncio.create_task(update_metrics_periodically())
 
+    # Start Pi power/brownout monitor (no-op off real Pi hardware)
+    power_monitor = PowerMonitor()
+    await power_monitor.start()
+
     yield
 
     # Cleanup
@@ -135,6 +144,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except asyncio.CancelledError:
         pass
 
+    if power_monitor:
+        await power_monitor.stop()
     if peer_manager:
         await peer_manager.close()
     if camera_manager:
@@ -290,26 +301,178 @@ async def handle_signaling_offer(offer: SDPOffer) -> SDPAnswer:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _heartbeat_snapshot() -> dict:
+    """Heartbeat stats for the Debug tab, plus the deadman window for context."""
+    if not motion_driver:
+        return {"available": False, "deadman_ms": settings.deadman_timeout_ms}
+    stats = motion_driver.heartbeat_stats()
+    stats["available"] = True
+    stats["deadman_ms"] = settings.deadman_timeout_ms
+    return stats
+
+
+async def _handle_debug_command(data: dict, armed: dict, out: asyncio.Queue) -> None:
+    """Apply a single inbound debug command. Motion is gated behind ``armed``."""
+    if not motion_driver:
+        out.put_nowait({"type": "error", "detail": "MotionDriver not initialised"})
+        return
+
+    cmd_type = data.get("type")
+
+    # Arm / disarm the motor drive controls.
+    if cmd_type == "arm":
+        armed["value"] = bool(data.get("value"))
+        if not armed["value"]:
+            await motion_driver.send_raw("MOTOR ALL STOP\n")
+        out.put_nowait({"type": "armed", "value": armed["value"]})
+        return
+
+    # Emergency + plain stop are always allowed and clear the armed state.
+    if cmd_type in ("estop", "stop"):
+        await motion_driver.send_raw("MOTOR ALL STOP\n")
+        armed["value"] = False
+        out.put_nowait({"type": "armed", "value": False})
+        return
+
+    # Stop a single motor (or all) — never gated.
+    if cmd_type == "motor_stop":
+        target = data.get("index", "all")
+        target = "ALL" if str(target).lower() == "all" else int(target)
+        await motion_driver.send_raw(f"MOTOR {target} STOP\n")
+        return
+
+    # Drive a single motor — requires the motors to be armed.
+    if cmd_type == "motor":
+        if not armed["value"]:
+            out.put_nowait({"type": "error", "detail": "Motors are disarmed"})
+            return
+        index = int(data.get("index", -1))
+        direction = str(data.get("direction", "")).upper()
+        speed = float(data.get("speed", 0.0))
+        if not 0 <= index <= 5 or direction not in ("FORWARD", "BACKWARD"):
+            out.put_nowait({"type": "error", "detail": "Invalid motor command"})
+            return
+        speed = max(0.0, min(1.0, speed))
+        if speed == 0.0:
+            await motion_driver.send_raw(f"MOTOR {index} STOP\n")
+        else:
+            await motion_driver.send_raw(f"MOTOR {index} {direction} {speed:.2f}\n")
+        return
+
+    # Steering servo — pulse width in microseconds. Not gated (servos hold).
+    if cmd_type == "servo":
+        channel = int(data.get("channel", -1))
+        pulse_us = int(data.get("pulse_us", 0))
+        if not 0 <= channel <= 5 or not 500 <= pulse_us <= 2500:
+            out.put_nowait({"type": "error", "detail": "Invalid servo command"})
+            return
+        await motion_driver.send_raw(f"S {channel} {pulse_us}\n")
+        return
+
+    # Raw console line — whitelisted verbs only, motion gated behind arm.
+    if cmd_type == "raw":
+        line = str(data.get("line", ""))
+        ok, reason = debug_hub.validate_raw_command(line)
+        if not ok:
+            out.put_nowait({"type": "error", "detail": reason})
+            return
+        if debug_hub.is_motion_command(line) and not armed["value"]:
+            out.put_nowait({"type": "error", "detail": "Motors are disarmed"})
+            return
+        await motion_driver.send_raw(line.strip() + "\n")
+        return
+
+    out.put_nowait({"type": "error", "detail": f"Unknown command type: {cmd_type}"})
+
+
 @app.websocket("/ws/debug")
 async def websocket_debug(websocket: WebSocket) -> None:
-    """
-    WebSocket endpoint for debugging and testing.
+    """Live debug channel: streams serial TX/RX, heartbeat, power flags and
+    logs to the browser, and accepts whitelisted actuator/console commands.
 
-    Echoes back any JSON messages received. Useful for quick connectivity tests.
+    Independent of the WebRTC connection so it keeps working during a brownout
+    or a failed video negotiation — exactly when you need to debug.
     """
     await websocket.accept()
-    logger.info("WebSocket debug connection established")
+    logger.info("Debug WebSocket connected")
+
+    armed = {"value": False}
+    out: asyncio.Queue = asyncio.Queue(maxsize=2000)
+    serial_q = motion_driver.events.subscribe() if motion_driver else None
+    log_q = debug_hub.log_broadcaster.subscribe()
+
+    # Seed the client with recent history and current state.
+    await websocket.send_json(
+        {
+            "type": "snapshot",
+            "serial": motion_driver.events.recent() if motion_driver else [],
+            "logs": debug_hub.log_broadcaster.recent(),
+            "heartbeat": _heartbeat_snapshot(),
+            "power": power_monitor.snapshot() if power_monitor else {"available": False},
+            "config": {
+                "deadman_ms": settings.deadman_timeout_ms,
+                "heartbeat_interval_ms": settings.serial_heartbeat_interval * 1000,
+                "serial_mock": settings.serial_mock,
+            },
+        }
+    )
+
+    async def relay(queue: asyncio.Queue, kind: str) -> None:
+        while True:
+            event = await queue.get()
+            try:
+                out.put_nowait({"type": kind, **event})
+            except asyncio.QueueFull:
+                pass
+
+    async def periodic() -> None:
+        while True:
+            await asyncio.sleep(0.5)
+            try:
+                out.put_nowait({"type": "heartbeat", **_heartbeat_snapshot()})
+                if power_monitor:
+                    out.put_nowait({"type": "power", **power_monitor.snapshot()})
+            except asyncio.QueueFull:
+                pass
+
+    async def sender() -> None:
+        while True:
+            msg = await out.get()
+            await websocket.send_json(msg)
+
+    async def receiver() -> None:
+        while True:
+            data = await websocket.receive_json()
+            try:
+                await _handle_debug_command(data, armed, out)
+            except Exception as exc:
+                logger.error(f"Debug command error: {exc}")
+                out.put_nowait({"type": "error", "detail": str(exc)})
+
+    tasks = [asyncio.create_task(sender()), asyncio.create_task(periodic()), asyncio.create_task(receiver())]
+    if serial_q is not None:
+        tasks.append(asyncio.create_task(relay(serial_q, "serial")))
+    tasks.append(asyncio.create_task(relay(log_q, "log")))
 
     try:
-        while True:
-            # Receive and echo JSON messages
-            data = await websocket.receive_json()
-            logger.debug(f"WebSocket received: {data}")
-            await websocket.send_json({"echo": data, "timestamp": __import__("time").time()})
+        # Finish as soon as any task ends (receiver on disconnect, or an error).
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     except WebSocketDisconnect:
-        logger.info("WebSocket debug connection closed")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        pass
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        if motion_driver and serial_q is not None:
+            motion_driver.events.unsubscribe(serial_q)
+        debug_hub.log_broadcaster.unsubscribe(log_q)
+        # Safety: a debug session may have left a motor running. Stop on exit.
+        if motion_driver:
+            try:
+                await motion_driver.send_raw("MOTOR ALL STOP\n")
+            except Exception:
+                pass
+        logger.info("Debug WebSocket closed")
 
 
 @app.get("/api/config", tags=["Configuration"])
