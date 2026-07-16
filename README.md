@@ -4,22 +4,25 @@ Cheddar is an experimental robotics platform designed for exploration, stair cli
 
 ## Hardware Overview  
 
-- **Arduino Mega** – main controller (chosen for GPIO pin availability)  
-- **ESP32-C3 SuperMini** – initial prototype MCU (being phased out)  
-- **DRV8833 motor drivers** – 3× dual H-bridge drivers for DC motors  
-- **PCA9685** – 16-channel servo controller for steering/actuation  
-- **Raspberry Pi 3** – high-level control, video streaming, and web interface  
-- **11.1V LiPo battery** with buck converters (step-down to 6V for motors/servos)  
+A Raspberry Pi 3B handles high-level control and video; a Freenove ESP32-WROOM drives 6 DC motors
+(3× DRV8833) and 6 steering servos (PCA9685) from commands sent over USB serial. Powered by a
+single 2S LiPo.
+
+📖 **See [HARDWARE.md](HARDWARE.md) for the full bill of materials, wiring diagram, pin map, and
+known issues.** That file is the single source of truth — don't restate hardware details here.
 
 ## Software Overview  
 
-- Arduino firmware for motor, servo, and encoder handling  
-- High-level commands (e.g. "left", "forward") issued from Raspberry Pi to MCU over serial  
-- Libraries used: Adafruit PCA9685 driver, standard Arduino motor/servo control libraries  
+- **[MotionDriver/](MotionDriver/)** – ESP32 firmware (PlatformIO) for motor and servo control
+- **[PieBrain/ChedWeb/](PieBrain/ChedWeb/)** – Pi-side WebRTC control interface (FastAPI + React)
+- **[webapp/](webapp/)** – legacy FastAPI serial bridge, useful for quick debugging
+- High-level commands issued from the Pi to the ESP32 over USB serial (`/dev/ttyUSB0`, 115200)
 - Modular design for expansion into autonomy, manipulation, and other experimental features  
 
 ## Current Status  
 
-- Basic motor driver and servo control functional  
-- Serial communication between Pi and Mega in testing  
+- Motor and servo control functional; Pi ↔ ESP32 serial link working over USB
+- ChedWeb WebRTC control and video streaming operational
+- **Open issue:** motor inrush browns out the shared rail and can freeze the Pi — see
+  [HARDWARE.md](HARDWARE.md#-known-issue--brownouts)
 - Perfboard layout and wiring in progress  

@@ -16,6 +16,26 @@ def _now_ms() -> float:
     return time.time() * 1000
 
 
+# ControlCommand carries servo positions in degrees (0-180, 90=straight), but the
+# firmware's `S <ch> <us>` takes a pulse width in microseconds and clamps it to
+# 1000-2000 (ServoController kDefaultMin/MaxPulseUs). Passing degrees straight
+# through lands every angle below the clamp floor, so all six servos slam to 1000us
+# (hard over) and steering appears dead -- 45 and 135 degrees clamp identically.
+SERVO_MIN_PULSE_US = 1000
+SERVO_MAX_PULSE_US = 2000
+SERVO_MAX_ANGLE_DEG = 180.0
+
+
+def servo_angle_to_pulse_us(angle_deg: float) -> int:
+    """Convert a servo angle in degrees to a firmware pulse width in microseconds.
+
+    Maps 0-180 degrees onto 1000-2000us, so 90 degrees (straight ahead) is 1500us.
+    """
+    angle = min(SERVO_MAX_ANGLE_DEG, max(0.0, float(angle_deg)))
+    span = SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US
+    return round(SERVO_MIN_PULSE_US + (angle / SERVO_MAX_ANGLE_DEG) * span)
+
+
 class MotionDriverBridge:
     """Asynchronous serial bridge to ESP32 MotionDriver.
 
@@ -282,9 +302,10 @@ class MotionDriverBridge:
                         speed_magnitude = abs(speed)  # 0.0 to 1.0
                         await self.send_raw(f"MOTOR {motor_id} {direction} {speed_magnitude}\n")
 
-            # Servo control - ESP32 expects pulse width in microseconds
+            # Servo control - command carries degrees, firmware wants microseconds
             if cmd.servos:
-                for servo_id, pulse_us in enumerate(cmd.servos):
+                for servo_id, angle_deg in enumerate(cmd.servos):
+                    pulse_us = servo_angle_to_pulse_us(angle_deg)
                     await self.send_raw(f"S {servo_id} {pulse_us}\n")
 
             # Legacy command support (backwards compatibility)
@@ -292,15 +313,16 @@ class MotionDriverBridge:
                 left = cmd.motor_left or 0.0
                 right = cmd.motor_right or 0.0
 
-                # Map to 6-motor layout (3 left, 3 right)
-                for motor_id in [0, 1, 2]:  # Left side
+                # Map to 6-motor layout. Wheel indices interleave sides
+                # (0=FL, 1=FR, 2=ML, 3=MR, 4=RL, 5=RR), so left is the even indices.
+                for motor_id in [0, 2, 4]:  # Left side
                     if left == 0:
                         await self.send_raw(f"MOTOR {motor_id} STOP\n")
                     else:
                         direction = "FORWARD" if left > 0 else "BACKWARD"
                         await self.send_raw(f"MOTOR {motor_id} {direction} {abs(left)}\n")
 
-                for motor_id in [3, 4, 5]:  # Right side
+                for motor_id in [1, 3, 5]:  # Right side
                     if right == 0:
                         await self.send_raw(f"MOTOR {motor_id} STOP\n")
                     else:
@@ -308,11 +330,9 @@ class MotionDriverBridge:
                         await self.send_raw(f"MOTOR {motor_id} {direction} {abs(right)}\n")
 
             if cmd.servo_pan is not None:
-                # Servo expects pulse width in microseconds (e.g., 1000-2000)
-                await self.send_raw(f"S 0 {cmd.servo_pan}\n")
+                await self.send_raw(f"S 0 {servo_angle_to_pulse_us(cmd.servo_pan)}\n")
             if cmd.servo_tilt is not None:
-                # Servo expects pulse width in microseconds (e.g., 1000-2000)
-                await self.send_raw(f"S 1 {cmd.servo_tilt}\n")
+                await self.send_raw(f"S 1 {servo_angle_to_pulse_us(cmd.servo_tilt)}\n")
 
         except Exception as e:
             logger.error(f"Error processing command: {e}")

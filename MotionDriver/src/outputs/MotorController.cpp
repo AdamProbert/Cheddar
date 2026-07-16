@@ -5,13 +5,34 @@ namespace outputs
 
     namespace
     {
+        // Wheel index -> DRV8833 channel, as the harness is physically wired.
+        // The loom does not follow M1..M6 in wheel order: M1/M2/M3 carry the right
+        // side front->rear, M4/M5/M6 the left side front->rear.
+        //
+        // Five of the six motors also have their leads reversed relative to the DRV8833
+        // forward contract, so IN1/IN2 are swapped for those to keep FORWARD driving the
+        // rover forward. Middle Left is the exception and is wired the normal way round --
+        // don't "tidy" it into matching the others.
+        //
+        // Verified against hardware 2026-07-16 by driving every index in both directions
+        // and watching which wheel turned and which way.
         constexpr int kMotorIn1Pins[MotorController::kMotorCount] = {
-            PIN_M1_IN1, PIN_M2_IN1, PIN_M3_IN1,
-            PIN_M4_IN1, PIN_M5_IN1, PIN_M6_IN1};
+            PIN_M4_IN2, // 0 Front Left    (reversed)
+            PIN_M1_IN2, // 1 Front Right   (reversed)
+            PIN_M5_IN1, // 2 Middle Left   (not reversed)
+            PIN_M2_IN2, // 3 Middle Right  (reversed)
+            PIN_M6_IN2, // 4 Rear Left     (reversed)
+            PIN_M3_IN2  // 5 Rear Right    (reversed)
+        };
 
         constexpr int kMotorIn2Pins[MotorController::kMotorCount] = {
-            PIN_M1_IN2, PIN_M2_IN2, PIN_M3_IN2,
-            PIN_M4_IN2, PIN_M5_IN2, PIN_M6_IN2};
+            PIN_M4_IN1, // 0 Front Left
+            PIN_M1_IN1, // 1 Front Right
+            PIN_M5_IN2, // 2 Middle Left
+            PIN_M2_IN1, // 3 Middle Right
+            PIN_M6_IN1, // 4 Rear Left
+            PIN_M3_IN1  // 5 Rear Right
+        };
     }
 
     MotorController::MotorController(int standbyPin)

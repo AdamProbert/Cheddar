@@ -123,6 +123,15 @@ else
   pipx install virtualenvwrapper >/dev/null 2>&1 || pipx upgrade virtualenvwrapper || true
 fi
 
+log "Installing esptool for $INVOKING_USER (flashes MotionDriver to the ESP32 over /dev/ttyUSB0)"
+# Lets the Pi flash the ESP32 in place, so the rover never needs tethering to the dev PC.
+# Pinned to the version PlatformIO bundles on the PC, so a flash from either machine uses
+# the same toolchain. Runs as the invoking user: pipx installs to ~/.local/bin, and that
+# user is the one in the 'dialout' group that can open the serial port.
+sudo -u "$INVOKING_USER" -H bash -lc 'pipx install "esptool==4.9.0"' >/dev/null 2>&1 \
+  || sudo -u "$INVOKING_USER" -H bash -lc 'pipx upgrade esptool' >/dev/null 2>&1 \
+  || log "esptool install failed (continuing; install manually: pipx install 'esptool==4.9.0')"
+
 log "Installing Oh My Zsh for $INVOKING_USER"
 sudo -u "$INVOKING_USER" -H bash -c 'RUNZSH=no CHSH=no KEEP_ZSHRC=yes bash -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"' || log "Oh My Zsh install script encountered an issue (continuing)."
 

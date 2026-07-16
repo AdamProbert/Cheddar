@@ -31,7 +31,7 @@ This document provides AI coding assistants with comprehensive context about the
 │  │  - Static dashboard                                  │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────┬───────────────────────────────────────────┘
-                  │ UART (Serial)
+                  │ USB Serial (CH340 → /dev/ttyUSB0 @ 115200)
 ┌─────────────────▼───────────────────────────────────────────┐
 │              ESP32-WROOM (MotionDriver)                      │
 │  - UART Command Interface                                   │
@@ -49,15 +49,15 @@ This document provides AI coding assistants with comprehensive context about the
 
 ## 📁 Project Structure & Components
 
-### Root Level (`/Users/adamprobert/projects/Cheddar/`)
+### Root Level
 
-- **README.md** - Main project overview and hardware specifications
+- **README.md** - Project overview
+- **HARDWARE.md** - **Authoritative hardware reference** (BOM, wiring, pin map, known issues)
 - **PieBrain/** - Raspberry Pi software and setup
-- **MotionDriver/** - ESP32 firmware (PlatformIO project)
+- **MotionDriver/** - ESP32 firmware (PlatformIO project) — the active motion controller
 - **webapp/** - Legacy FastAPI serial bridge
 - **BlinkRGB/** - ESP32 LED test firmware
-- **MotorDriver/** - Arduino Mega experimental firmware
-- **ServoMotorDriver/** - Arduino servo test sketches
+- **ServoMotorDriver/** - Historical Arduino servo sketches (not part of the current build)
 
 ### PieBrain (`PieBrain/`)
 
@@ -194,22 +194,8 @@ Low-level ESP32 firmware that bridges UART commands to motors and servos.
 - `outputs/MotorController.cpp/.h` - LEDC PWM channels for DRV8833 H-bridges
 - `include/pins.h` - **Central pin map** (authoritative source)
 
-**Hardware Connections:**
-
-| Function | ESP32 Pin | Notes |
-|----------|-----------|-------|
-| I²C SDA (PCA9685) | 21 | Servo bus data |
-| I²C SCL (PCA9685) | 22 | Servo bus clock |
-| UART2 RX (from Pi) | 16 | 3.3V logic |
-| UART2 TX (to Pi) | 17 | 3.3V logic |
-| DRV8833 STBY | 27 | Shared standby for all drivers |
-| PCA9685 OE | 5 | Active-low output enable |
-| M1 IN1/IN2 | 13, 14 | DRV8833 AIN1/AIN2 |
-| M2 IN1/IN2 | 25, 26 | DRV8833 BIN1/BIN2 |
-| M3 IN1/IN2 | 32, 33 | DRV8833 AIN1/AIN2 |
-| M4 IN1/IN2 | 4, 18 | DRV8833 BIN1/BIN2 |
-| M5 IN1/IN2 | 19, 23 | DRV8833 AIN1/AIN2 |
-| M6 IN1/IN2 | 2, 15 | Boot-sensitive pins |
+**Hardware Connections:** see [HARDWARE.md](../../HARDWARE.md#esp32-pin-map) for the pin map, or
+`include/pins.h` for the authoritative values.
 
 **UART Command Protocol:**
 
@@ -294,35 +280,26 @@ pytest webapp/tests
 
 ## 🔧 Hardware Specifications
 
-### Main Controller
+**→ See [HARDWARE.md](../../HARDWARE.md) for the authoritative hardware reference:** bill of
+materials, wiring diagram, pin map, wheel indexing, and known issues. Do not restate hardware
+details in this file — link to it instead.
 
-- **Current:** Arduino Mega (chosen for GPIO availability)
-- **Previous:** ESP32-C3 SuperMini (being phased out)
+Quick orientation for agents:
 
-### Motor Control
-
-- **Drivers:** 3× DRV8833 dual H-bridge motor drivers
-- **Motors:** 6 DC motors total
-- **Control:** PWM via ESP32 LEDC channels
-
-### Servo Control
-
-- **Controller:** PCA9685 16-channel PWM controller (I²C)
-- **Servos:** 6 hobby servos for steering/actuation
-- **Protocol:** I²C communication at 21/22 (SDA/SCL)
+- **MCU:** Freenove ESP32-WROOM (`board = esp32dev`). *Not* an Arduino Mega, *not* a C3 SuperMini —
+  both were evaluated and dropped. Older docs claiming otherwise are stale.
+- **Pi ↔ ESP32:** USB serial via CH340 bridge, `/dev/ttyUSB0` @ 115200. **Not** GPIO UART —
+  `PIN_UART2_RX/TX` in `pins.h` are vestigial and unused.
+- **Actuation:** 6 DC motors via 3× DRV8833; 6 servos via PCA9685 on I²C.
+- **Power:** single 2S LiPo (7.4 V nom / 8.4 V full). Pi runs off the ESP32 breakout's 5 V buck,
+  which is why motor inrush can brown out the Pi.
 
 ### High-Level Processing
 
-- **Board:** Raspberry Pi 3
-- **OS:** Raspberry Pi OS (Bullseye or newer)
-- **Python:** 3.9+ (3.11 recommended, 3.13 on latest OS)
+- **Board:** Raspberry Pi 3B, hostname `cheddarpi`
+- **OS:** Debian 13 (trixie)
+- **Python:** 3.9+ (3.13 on the Pi)
 - **Node.js:** 18+ required for frontend development
-
-### Power System
-
-- **Battery:** 11.1V LiPo
-- **Regulation:** Buck converters step down to 6V for motors/servos
-- **Distribution:** Separate power rails for logic and actuators
 
 ## 🛠️ Development Workflows
 
