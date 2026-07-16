@@ -67,6 +67,16 @@ namespace outputs
         // stepping a large jump in one go.
         static constexpr uint32_t kMaxRampStepMs = 50;
 
+        // Duty below which the wheels do not turn at all -- the rover just sits and
+        // buzzes. Measured on hardware 2026-07-16. A non-zero speed maps into
+        // [kMinMovingDuty, 1.0] so the ramp spends its time where the wheels actually
+        // move, instead of crawling through dead duty and then lurching.
+        //
+        // This is calibrated to the *current* 8.4V unbucked motor rail. It is a fraction
+        // of whatever the rail happens to be, so it MUST be re-measured if that rail
+        // changes -- notably if the ~6V motor buck in HARDWARE.md ever lands.
+        static constexpr float kMinMovingDuty = 0.80f;
+
         bool validIndex(uint8_t motorIndex) const;
         float clampSpeed(float speed) const;
         float effectiveSignedTarget(uint8_t motorIndex) const;

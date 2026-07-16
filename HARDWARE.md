@@ -242,13 +242,21 @@ not the servos too.
 
 Two ways out:
 
-1. **Add a buck on the motor rail at ~6.0–6.5 V.** The correct fix. Size it for the stall current of
-   six geared motors — the servos are already handled elsewhere.
+1. **Add a buck on the motor rail at ~6.0–6.5 V.** Size it for the stall current of six geared
+   motors — the servos are already handled elsewhere.
 2. **Cap PWM duty in firmware** to ~70% (6.0/8.4) so the *average* lands near 6 V. Free and
    reversible, but it is only an average: the motors still see full 8.4 V peaks every PWM cycle, and
    it silently costs top speed. A stopgap, not a fix.
 
-Until one is in place, treat sustained full-throttle running as something that shortens motor life.
+> 🔴 **Both are blocked as of 2026-07-16 — do not buy a buck converter yet.** The rover does not
+> move below **~80% duty ≈ 6.7 V**, which is already *above* the motors' 6 V rating (see [drive
+> characteristic](#-drive-characteristic--nothing-moves-below-80-duty)). Option 2 is dead on
+> arrival: capping duty at 70% sits under the threshold and would leave the rover unable to move at
+> all. Option 1 would buck the rail to a voltage it currently cannot start from. Settle the drive
+> characteristic first — if fast decay is the cause, fixing it lowers the threshold and both options
+> come back.
+
+Until then, treat sustained full-throttle running as something that shortens motor life.
 
 ### ⚠️ Known issue — brownouts
 
@@ -298,6 +306,32 @@ make the safe state the default state.
 
 This is speculative until the board is inspected — but it's the mechanism that would explain motors
 behaving oddly around a brownout, as distinct from simply stopping.
+
+### 🔴 Drive characteristic — nothing moves below ~80% duty
+
+**Measured 2026-07-16.** The wheels do not break loose until roughly **80% PWM duty**. Below that the
+rover sits and buzzes. The firmware therefore maps a non-zero commanded speed into
+`[0.80, 1.0]` duty (`kMinMovingDuty` in
+[`MotorController.h`](MotionDriver/src/outputs/MotorController.h)) so the usable stick travel is all
+real. That constant is a fraction of **whatever the motor rail happens to be** — re-measure it if the
+rail ever changes.
+
+The number itself is the concerning part: 80% of 8.4 V is **~6.7 V**, so the rover needs *more than
+the motors' rated 6 V* just to start. That is not ordinary stiction, and it is what blocks both
+overvolt fixes above. Two candidate causes:
+
+1. **Fast-decay PWM (most likely).** Forward is driven `IN1=PWM, IN2=LOW`, so during each PWM
+   off-period both outputs go low and the motor coasts. Fast decay gives poor torque at low duty and
+   a badly non-linear speed/duty curve — precisely the "nothing, nothing, nothing, GO" behaviour
+   observed. **Slow decay** (hold `IN1` HIGH, PWM `IN2` inverted, so current recirculates through the
+   bridge) should lower the threshold substantially. Contained change to `applyOutput`; not yet tried.
+2. **The drivetrain is over-taxed** — too heavy or over-geared for six 25 mm gearmotors, in which
+   case ~80% is simply the truth and the rover needs the 8.4 V it is getting.
+
+Worth settling, because it decides the whole power plan: if it is (1), fixing decay lowers the
+threshold, the 6 V buck becomes viable and the overvolt goes away properly. If it is (2), the motors
+need the overvolt to function and the buck must never be fitted — which makes the overvolt a
+permanent, managed condition rather than a bug.
 
 ### ⚠️ No current sensing
 

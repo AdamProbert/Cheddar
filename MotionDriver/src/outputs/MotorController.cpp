@@ -307,14 +307,19 @@ namespace outputs
         const auto &motor = m_motors[motorIndex];
         const uint32_t maxDuty = (1u << kPwmResolutionBits) - 1u;
         const float magnitude = fabsf(motor.currentSignedSpeed);
-        const uint32_t duty = static_cast<uint32_t>(magnitude * static_cast<float>(maxDuty) + 0.5f);
 
-        if (duty == 0)
+        if (magnitude <= 0.0f)
         {
             ledcWrite(motor.channelA, 0);
             ledcWrite(motor.channelB, 0);
             return;
         }
+
+        // Speed is a fraction of the *usable* output, not of raw duty: 0 is stopped and
+        // anything above it starts at kMinMovingDuty, the point where the wheels break
+        // loose. Ramping raw duty from zero just buzzed for most of the ramp.
+        const float scaledDuty = kMinMovingDuty + magnitude * (1.0f - kMinMovingDuty);
+        const uint32_t duty = static_cast<uint32_t>(scaledDuty * static_cast<float>(maxDuty) + 0.5f);
 
         if (motor.currentSignedSpeed > 0.0f)
         {
