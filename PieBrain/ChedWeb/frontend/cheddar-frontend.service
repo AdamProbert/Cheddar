@@ -2,7 +2,11 @@
 Description=Cheddar Frontend (React Production Build)
 After=network-online.target cheddar-backend.service
 Wants=network-online.target
-Requires=cheddar-backend.service
+# Wants, not Requires: this only serves static files and the browser talks to
+# the backend on :8000 directly. Under Requires, a failed backend start job
+# cancelled this one outright and it stayed dead even after the backend's
+# Restart= brought it back, taking the UI down with it.
+Wants=cheddar-backend.service
 
 [Service]
 Type=simple

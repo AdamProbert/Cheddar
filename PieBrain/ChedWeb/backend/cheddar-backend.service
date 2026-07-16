@@ -9,12 +9,17 @@ User=adamprobert
 WorkingDirectory=/home/adamprobert/Cheddar/PieBrain/ChedWeb/backend
 Environment="PATH=/home/adamprobert/Cheddar/PieBrain/ChedWeb/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Pre-start: Git sync from main branch
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar && git fetch origin && git checkout main && git reset --hard origin/main'
+# Pre-start: Git sync from main branch.
+# Non-fatal (leading `-`): DNS is often not up yet when this runs even with
+# network-online.target, and a failed fetch used to fail the whole start job.
+# On failure the backend just serves the code already on disk.
+ExecStartPre=-/bin/bash -c 'cd /home/adamprobert/Cheddar && git fetch origin && git checkout main && git reset --hard origin/main'
 
-# Install/update Python dependencies
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/backend && .venv/bin/pip install --upgrade pip'
-ExecStartPre=/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/backend && .venv/bin/pip install -r requirements.txt'
+# Install/update Python dependencies. Also non-fatal, for the same reason as
+# the fetch above: these need the network, and the already-installed venv is
+# good enough to boot with.
+ExecStartPre=-/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/backend && .venv/bin/pip install --upgrade pip'
+ExecStartPre=-/bin/bash -c 'cd /home/adamprobert/Cheddar/PieBrain/ChedWeb/backend && .venv/bin/pip install -r requirements.txt'
 
 # Start backend
 ExecStart=/home/adamprobert/Cheddar/PieBrain/ChedWeb/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
