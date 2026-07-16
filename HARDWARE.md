@@ -149,21 +149,41 @@ all six wheels in **both** directions and observing which wheel turned and which
 > did nothing forward. That wire has been fixed, but a forward/backward asymmetry on a single wheel
 > is the signature of exactly this, so suspect the IN-side lead before the firmware.
 
-| Index | Position | Motor | Driver | IN1 / IN2 (fwd, rev) | Servo ch |
+**The servo loom is mis-ordered too, and differently.** Wheel index does not equal PCA9685 channel:
+the left side sits on channels 0–2 running rear→front, and the right side does *not* mirror it.
+There is no formula — it is a lookup, held in `kWheelToPcaChannel` in
+[`ServoController.cpp`](MotionDriver/src/outputs/ServoController.cpp). The translation happens in
+`writeMicroseconds`, the single point where a wheel index becomes a physical channel; everything
+else in that class stays wheel-indexed.
+
+| Index | Position | Motor | Driver | IN1 / IN2 (fwd, rev) | PCA9685 ch |
 | --- | --- | --- | --- | --- | --- |
-| 0 | Front Left | M4 | B | 18, 4 | 0 |
-| 1 | Front Right | M1 | A | 14, 13 | 1 |
-| 2 | Middle Left | M5 | C | 19, 23 | 2 |
+| 0 | Front Left | M4 | B | 18, 4 | 2 |
+| 1 | Front Right | M1 | A | 14, 13 | 4 |
+| 2 | Middle Left | M5 | C | 19, 23 | 1 |
 | 3 | Middle Right | M2 | A | 26, 25 | 3 |
-| 4 | Rear Left | M6 | C | 15, 2 | 4 |
+| 4 | Rear Left | M6 | C | 15, 2 | 0 |
 | 5 | Rear Right | M3 | B | 33, 32 | 5 |
 
-> ⚠️ **The servo column is unverified.** Only the motors were tested. Since the motor loom turned
-> out to be wired in side-blocks rather than wheel order, the servos may well be too — assume this
-> column is a guess until each channel is driven and observed.
+Both looms were verified against hardware on 2026-07-16 by driving each index and observing which
+wheel responded. **Neither the motor nor the servo loom follows wheel order, and they are mis-ordered
+in *different* ways** — never infer one from the other, and never assume index `n` is channel `n`.
 
-Motor speed: `-1.0` (full reverse) → `1.0` (full forward), sent as `-255..255` over UART.
-Servo angle: `0`–`180°`, with `90` = straight ahead.
+### Units — the two layers disagree, on purpose
+
+`ControlCommand` (browser → backend) and the UART CLI (backend → ESP32) do **not** use the same
+units. The [ChedWeb bridge](PieBrain/ChedWeb/backend/motion_driver_bridge.py) is what converts
+between them.
+
+| | `ControlCommand` | UART CLI |
+| --- | --- | --- |
+| Motor speed | `-1.0` … `1.0`, sign = direction | `MOTOR <n> FORWARD\|BACKWARD <0.0-1.0>` — direction is a word, speed is unsigned |
+| Servo position | `0`–`180°`, `90` = straight | `S <ch> <us>` — **microseconds**, clamped 1000–2000, `1500` = straight |
+
+> ⚠️ Servo values are **degrees at the top and microseconds at the bottom**. Passing degrees
+> straight through is silently destructive: every angle in 0–180 falls under the firmware's 1000 µs
+> floor, so all six servos clamp hard over and steering appears dead — 45° and 135° clamp to the
+> same value. This shipped once; `tests/test_motion_driver_bridge.py` now pins the conversion.
 
 ## Motor control contract
 

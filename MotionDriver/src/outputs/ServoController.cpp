@@ -12,6 +12,21 @@ namespace outputs
             PIN_M1_IN1, PIN_M1_IN2, PIN_M2_IN1, PIN_M2_IN2,
             PIN_M3_IN1, PIN_M3_IN2, PIN_M4_IN1, PIN_M4_IN2,
             PIN_M5_IN1, PIN_M5_IN2, PIN_M6_IN1, PIN_M6_IN2};
+
+        // Wheel index -> PCA9685 output channel, as the servo loom is physically wired.
+        // It does not follow wheel order, and unlike the motors there is no tidy pattern:
+        // the left side sits on channels 0-2 running rear->front, and the right side does
+        // not mirror it. Treat this as a lookup, not a formula.
+        // Verified against hardware 2026-07-16 by driving each index and watching which
+        // wheel steered.
+        constexpr uint8_t kWheelToPcaChannel[ServoController::kServoCount] = {
+            2, // 0 Front Left
+            4, // 1 Front Right
+            1, // 2 Middle Left
+            3, // 3 Middle Right
+            0, // 4 Rear Left
+            5  // 5 Rear Right
+        };
     }
 
     ServoController::ServoController()
@@ -267,7 +282,7 @@ namespace outputs
 
         const uint16_t clamped = clampPulse(channel, static_cast<int32_t>(pulseUs));
         const uint16_t ticks = pulseToTicks(clamped);
-        m_driver.setPWM(channel, 0, ticks);
+        m_driver.setPWM(kWheelToPcaChannel[channel], 0, ticks);
         m_sweepStates[channel].currentPulseUs = clamped;
     }
 
