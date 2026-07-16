@@ -22,6 +22,10 @@ namespace outputs
 
         bool begin();
 
+        // Slews each motor toward its commanded speed. Must be called from the main
+        // loop; without it, motors never reach their target.
+        void update(uint32_t nowMs);
+
         void run(uint8_t motorIndex, Direction direction, float speed, bool autoEnable = true);
         void runAll(Direction direction, float speed, bool autoEnable = true);
         void start(uint8_t motorIndex);
@@ -45,14 +49,27 @@ namespace outputs
             Direction direction;
             float targetSpeed;
             bool outputEnabled;
+            // Signed so a forward<->reverse change ramps down through zero and back up
+            // rather than snapping across. Sign picks the direction, magnitude the duty.
+            float currentSignedSpeed;
         };
 
         static constexpr uint8_t kChannelsPerMotor = 2;
         static constexpr uint32_t kPwmFrequencyHz = 12000;
         static constexpr uint8_t kPwmResolutionBits = 8;
 
+        // Slew rate, in speed units per second: 3.0 takes ~330ms from rest to full and
+        // ~670ms for a full reversal. Tuned to take the edge off without feeling laggy.
+        // Easing the current ramp also softens the inrush that sags the rail -- see the
+        // brownout notes in HARDWARE.md.
+        static constexpr float kSpeedRampPerSecond = 3.0f;
+        // Ceiling on the timestep, so a stalled loop resumes by ramping rather than
+        // stepping a large jump in one go.
+        static constexpr uint32_t kMaxRampStepMs = 50;
+
         bool validIndex(uint8_t motorIndex) const;
         float clampSpeed(float speed) const;
+        float effectiveSignedTarget(uint8_t motorIndex) const;
         void applyOutput(uint8_t motorIndex);
         void updateStandby();
         void disableOutputs();
@@ -60,6 +77,7 @@ namespace outputs
         int m_standbyPin;
         bool m_initialized;
         bool m_driverEnabled;
+        uint32_t m_lastUpdateMs;
         MotorState m_motors[kMotorCount];
     };
 

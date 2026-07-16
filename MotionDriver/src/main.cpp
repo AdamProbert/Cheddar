@@ -56,4 +56,5 @@ void loop()
     g_uartInput.poll();
     g_uartInput.update(millis());
     g_servoController.update(millis());
+    g_motorController.update(millis());
 }

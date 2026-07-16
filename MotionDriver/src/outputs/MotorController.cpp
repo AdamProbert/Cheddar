@@ -38,7 +38,8 @@ namespace outputs
     MotorController::MotorController(int standbyPin)
         : m_standbyPin(standbyPin),
           m_initialized(false),
-          m_driverEnabled(false)
+          m_driverEnabled(false),
+          m_lastUpdateMs(0)
     {
         for (uint8_t index = 0; index < kMotorCount; ++index)
         {
@@ -50,6 +51,7 @@ namespace outputs
             motor.direction = Direction::Forward;
             motor.targetSpeed = 0.0f;
             motor.outputEnabled = false;
+            motor.currentSignedSpeed = 0.0f;
         }
     }
 
@@ -79,8 +81,58 @@ namespace outputs
 
         m_initialized = true;
         m_driverEnabled = false;
+        m_lastUpdateMs = millis();
 
         return true;
+    }
+
+    void MotorController::update(uint32_t nowMs)
+    {
+        if (!m_initialized)
+        {
+            return;
+        }
+
+        const uint32_t elapsedMs = nowMs - m_lastUpdateMs;
+        if (elapsedMs == 0)
+        {
+            return;
+        }
+        m_lastUpdateMs = nowMs;
+
+        const uint32_t stepMs = (elapsedMs > kMaxRampStepMs) ? kMaxRampStepMs : elapsedMs;
+        const float maxDelta = kSpeedRampPerSecond * (static_cast<float>(stepMs) / 1000.0f);
+
+        bool anyChanged = false;
+
+        for (uint8_t index = 0; index < kMotorCount; ++index)
+        {
+            auto &motor = m_motors[index];
+            const float target = effectiveSignedTarget(index);
+            const float diff = target - motor.currentSignedSpeed;
+
+            if (diff == 0.0f)
+            {
+                continue;
+            }
+
+            if (fabsf(diff) <= maxDelta)
+            {
+                motor.currentSignedSpeed = target;
+            }
+            else
+            {
+                motor.currentSignedSpeed += (diff > 0.0f) ? maxDelta : -maxDelta;
+            }
+
+            applyOutput(index);
+            anyChanged = true;
+        }
+
+        if (anyChanged)
+        {
+            updateStandby();
+        }
     }
 
     void MotorController::run(uint8_t motorIndex, Direction direction, float speed, bool autoEnable)
@@ -185,9 +237,13 @@ namespace outputs
             return;
         }
 
+        // Hard stop, deliberately un-ramped: this backs the deadman failsafe, E-STOP and
+        // peer disconnect. Those must cut output now, not ease out of it. Per-motor
+        // stop() is the one that ramps.
         for (uint8_t index = 0; index < kMotorCount; ++index)
         {
             m_motors[index].outputEnabled = false;
+            m_motors[index].currentSignedSpeed = 0.0f;
             applyOutput(index);
         }
 
@@ -246,18 +302,21 @@ namespace outputs
             return;
         }
 
+        // Driven by the ramped speed, not the commanded one -- update() walks
+        // currentSignedSpeed toward the target and calls back in here.
         const auto &motor = m_motors[motorIndex];
         const uint32_t maxDuty = (1u << kPwmResolutionBits) - 1u;
-        const uint32_t duty = static_cast<uint32_t>(motor.targetSpeed * static_cast<float>(maxDuty) + 0.5f);
+        const float magnitude = fabsf(motor.currentSignedSpeed);
+        const uint32_t duty = static_cast<uint32_t>(magnitude * static_cast<float>(maxDuty) + 0.5f);
 
-        if (!motor.outputEnabled || duty == 0)
+        if (duty == 0)
         {
             ledcWrite(motor.channelA, 0);
             ledcWrite(motor.channelB, 0);
             return;
         }
 
-        if (motor.direction == Direction::Forward)
+        if (motor.currentSignedSpeed > 0.0f)
         {
             ledcWrite(motor.channelA, duty);
             ledcWrite(motor.channelB, 0);
@@ -269,13 +328,24 @@ namespace outputs
         }
     }
 
+    float MotorController::effectiveSignedTarget(uint8_t motorIndex) const
+    {
+        const auto &motor = m_motors[motorIndex];
+        if (!motor.outputEnabled)
+        {
+            return 0.0f;
+        }
+        return (motor.direction == Direction::Forward) ? motor.targetSpeed : -motor.targetSpeed;
+    }
+
     void MotorController::updateStandby()
     {
+        // A motor still coasting down to zero needs the drivers live to get there, so
+        // a non-zero *current* speed counts as active just as much as a non-zero target.
         bool anyActive = false;
         for (uint8_t index = 0; index < kMotorCount; ++index)
         {
-            const auto &motor = m_motors[index];
-            if (motor.outputEnabled && motor.targetSpeed > 0.0f)
+            if (m_motors[index].currentSignedSpeed != 0.0f || effectiveSignedTarget(index) != 0.0f)
             {
                 anyActive = true;
                 break;
@@ -304,7 +374,8 @@ namespace outputs
     {
         for (uint8_t index = 0; index < kMotorCount; ++index)
         {
-            const auto &motor = m_motors[index];
+            auto &motor = m_motors[index];
+            motor.currentSignedSpeed = 0.0f;
             ledcWrite(motor.channelA, 0);
             ledcWrite(motor.channelB, 0);
         }

@@ -30,9 +30,12 @@ COMMANDS
     MOTOR <target> FORWARD|BACKWARD [speed]
         Drives selected motor(s) via DRV8833 in the chosen direction.
         <target> is 0-5 or ALL. Optional speed is 0.0-1.0 (default 1.0).
+        Speed is ramped, not applied instantly; see NOTES.
 
     MOTOR <target> STOP
-        Coasts the selected motor(s); ALL also drops STBY low.
+        Ramps the selected motor(s) down to a stop.
+        ALL stops immediately with no ramp and drops STBY low - this is the
+        failsafe path, shared with the deadman timeout.
 
     MOTOR <target> START
         Resumes motion for motor(s) that were previously stopped.
@@ -52,6 +55,10 @@ NOTES
     • Channel indices beyond 0-5 are rejected.
     • Pulse widths are clamped to configured min/max per channel.
     • Motor targets must be 0-5 or ALL; speed range is 0.0-1.0.
+    • Motors slew toward the commanded speed at ~3.0 units/s: roughly 330ms from
+      rest to full, 670ms for a full reversal. A FORWARD->BACKWARD change eases
+      down through zero rather than snapping across.
+    • MOTOR ALL STOP, the deadman timeout and E-STOP all bypass the ramp.
 
 OK
 )HELPDOC"
