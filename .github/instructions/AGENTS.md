@@ -541,6 +541,7 @@ pytest tests/
 8. **Consider power** - verify voltage levels and current requirements
 9. **Monitor resources** - Pi 3 has limited CPU/memory for video encoding
 10. **Version compatibility** - Python 3.9+ required, Node.js 18+ required
+11. **Commits** - Do not add a `Co-Authored-By` trailer (or any agent attribution) to commit messages
 
 ---
 
