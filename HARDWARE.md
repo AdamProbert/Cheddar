@@ -134,9 +134,9 @@ Motors and servos share one index. **The index does *not* map to `M(n+1)`** — 
 wired in wheel order. `M1`–`M3` carry the **right** side front→rear and `M4`–`M6` the **left** side
 front→rear, so `MOTOR 0` (Front Left) drives M4 on GPIO 4/18.
 
-**Five of the six** motors are also wired with their leads **reversed** relative to the DRV8833
+**Four of the six** motors are also wired with their leads **reversed** relative to the DRV8833
 forward contract below, so the firmware swaps IN1/IN2 for those to keep `FORWARD` driving the rover
-forward. **Middle Left is the exception** — it is wired the normal way round.
+forward. **Front Left and Middle Left are the exceptions** — they are wired the normal way round.
 
 Both facts are absorbed in the wheel→pin table in
 [`MotorController.cpp`](MotionDriver/src/outputs/MotorController.cpp) — `pins.h` still records the
@@ -158,7 +158,7 @@ else in that class stays wheel-indexed.
 
 | Index | Position | Motor | Driver | IN1 / IN2 (fwd, rev) | PCA9685 ch |
 | --- | --- | --- | --- | --- | --- |
-| 0 | Front Left | M4 | B | 18, 4 | 2 |
+| 0 | Front Left | M4 | B | 4, 18 | 2 |
 | 1 | Front Right | M1 | A | 14, 13 | 4 |
 | 2 | Middle Left | M5 | C | 19, 23 | 1 |
 | 3 | Middle Right | M2 | A | 26, 25 | 3 |
