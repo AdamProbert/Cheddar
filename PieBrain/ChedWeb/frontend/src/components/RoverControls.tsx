@@ -22,7 +22,7 @@ const DRIVE_MODE_LABELS: Record<DriveMode, string> = {
 }
 
 const DRIVE_MODE_DESCRIPTIONS: Record<DriveMode, string> = {
-  ackermann: 'Car-like: front wheels steer',
+  ackermann: 'Car-like: front + rear steer, tight turn',
   crab: 'Strafe: all wheels same angle',
   tank: 'Differential: left vs right',
   spin: 'Rotate: spin around center',

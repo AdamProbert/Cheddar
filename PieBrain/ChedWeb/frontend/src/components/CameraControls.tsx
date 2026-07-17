@@ -37,10 +37,10 @@ export function CameraControls() {
   const setCameraSettings = useAppStore(state => state.setCameraSettings)
 
   // Temporary state for form inputs
-  const [awbMode, setAwbMode] = useState<string>('manual')
+  const [awbMode, setAwbMode] = useState<string>('auto')
   const [redGain, setRedGain] = useState<number>(1.5)
   const [blueGain, setBlueGain] = useState<number>(1.5)
-  const [framerate, setFramerate] = useState<number>(30)
+  const [framerate, setFramerate] = useState<number>(60)
   const [resolution, setResolution] = useState<string>('640x480')
 
   const fetchSettings = async () => {

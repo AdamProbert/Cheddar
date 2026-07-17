@@ -28,6 +28,57 @@ export interface RoverInputState {
 
 export const DEFAULT_SPEED_SCALE = 0.75
 
+/**
+ * Ackermann steering geometry.
+ *
+ * The rover steers all four corner wheels: the front pair turns into the corner
+ * and the rear pair counter-steers by an equal, opposite amount, so the whole
+ * vehicle rotates about a point on its lateral centreline (the middle axle).
+ * That roughly halves the turning radius versus steering the front alone.
+ *
+ * Because both axles pivot about the same instantaneous centre, the inner wheel
+ * on each axle must turn sharper than the outer one (true Ackermann) or the
+ * tyres scrub. We compute each wheel's angle from its position relative to the
+ * turn centre, so the inner/outer split falls out of the geometry.
+ *
+ * Positions are in units of half the track width (so the side offset is ±1).
+ * ACKERMANN_AXLE_OFFSET is then the front/rear axle's forward distance from the
+ * rover centre as a multiple of that half-track. 1.0 == "as far forward as the
+ * wheels are out to the side" (a square-ish footprint). Measure and retune this
+ * if the inner/outer split ever looks off.
+ */
+const ACKERMANN_AXLE_OFFSET = 1.0
+
+/**
+ * Sharpest steer angle (degrees from straight) any single wheel is allowed to
+ * reach, hit by the inner front wheel at full lock. Larger = tighter circle,
+ * but must stay within what the steering linkage can travel without binding.
+ */
+const ACKERMANN_MAX_STEER_DEG = 75
+
+/**
+ * Per-wheel position for the Ackermann solver, indexed 0=FL,1=FR,2=ML,3=MR,
+ * 4=RL,5=RR. `lon` is forward offset from centre (front +, rear -); `lat` is
+ * the sideways offset with the right side +1, so a positive turn (steer right)
+ * makes the right-side wheels the inner, sharper pair.
+ */
+const ACKERMANN_WHEEL_GEOMETRY: ReadonlyArray<{ lon: number; lat: number }> = [
+  { lon: ACKERMANN_AXLE_OFFSET, lat: -1 }, // 0 FL
+  { lon: ACKERMANN_AXLE_OFFSET, lat: +1 }, // 1 FR
+  { lon: 0, lat: -1 }, // 2 ML
+  { lon: 0, lat: +1 }, // 3 MR
+  { lon: -ACKERMANN_AXLE_OFFSET, lat: -1 }, // 4 RL
+  { lon: -ACKERMANN_AXLE_OFFSET, lat: +1 }, // 5 RR
+]
+
+/**
+ * Maximum path curvature (1/turn-radius), reached at full stick. Derived so the
+ * inner front wheel sits exactly at ACKERMANN_MAX_STEER_DEG when |turn| == 1:
+ * tan(maxSteer) = axleOffset / (R - halfTrack), with halfTrack == 1.
+ */
+const ACKERMANN_MAX_CURVATURE =
+  1 / (1 + ACKERMANN_AXLE_OFFSET / Math.tan((ACKERMANN_MAX_STEER_DEG * Math.PI) / 180))
+
 export type InputCallback = (state: RoverInputState) => void
 
 /**
@@ -71,7 +122,7 @@ const KEY_MAP = {
   
 
 // Driving style description
-// Ackermann Steering - Traditional car-like steering (front wheels steer)
+// Ackermann Steering - Car-like steering; front + rear counter-steer for a tight turn
 // Crab/Strafe - All wheels point same direction, move sideways
 // Tank Drive - Left/right side differential (wheels pointed forward)
 // Spin Turn - Wheels form a circle around center, rotate in place
@@ -356,21 +407,40 @@ export class InputManager {
   }
   
   /**
-   * Ackermann steering - front wheels steer, car-like behavior
+   * Ackermann steering - all four corner wheels steer about a common turn
+   * centre (front into the corner, rear counter-steering) for a tight,
+   * car-like turn. See ACKERMANN_* constants above for the geometry.
    */
   private applyAckermannSteering(forward: number, turn: number): void {
     // All wheels drive at same speed
     const speed = this.clamp(forward, -1, 1)
     this.state.motors = [speed, speed, speed, speed, speed, speed]
-    
-    // Front wheels steer, others straight
-    const steerAngle = 90 + turn * 45 // ±45 degrees from center
-    this.state.servos[0] = this.roundServoAngle(steerAngle) // FL
-    this.state.servos[1] = this.roundServoAngle(steerAngle) // FR
-    this.state.servos[2] = 90 // ML straight
-    this.state.servos[3] = 90 // MR straight
-    this.state.servos[4] = 90 // RL straight
-    this.state.servos[5] = 90 // RR straight
+
+    this.applyAckermannGeometry(turn)
+  }
+
+  /**
+   * Solve the true-Ackermann steer angle for every wheel at the given turn
+   * input [-1..1] and write them into state.servos. Both the front and rear
+   * axles pivot about one common centre on the lateral centreline, so the front
+   * pair steers into the corner, the rear pair counter-steers, the middle pair
+   * stays straight, and the inner wheel of each axle turns sharper than the
+   * outer. Shared by the ackermann and point-turn modes.
+   */
+  private applyAckermannGeometry(turn: number): void {
+    // Signed path curvature (1/radius). turn == 0 gives k == 0 (all straight).
+    const k = this.clamp(turn, -1, 1) * ACKERMANN_MAX_CURVATURE
+
+    // Each wheel's rolling direction is perpendicular to the line from the turn
+    // centre (on the lateral centreline at distance 1/k) to the wheel. That
+    // works out to steer = atan(lon * k / (1 - lat * k)); rear wheels have
+    // negative lon and so counter-steer automatically, middle wheels lon 0 stay
+    // straight, and the inner wheel of each axle turns sharper than the outer.
+    for (let i = 0; i < 6; i++) {
+      const { lon, lat } = ACKERMANN_WHEEL_GEOMETRY[i]
+      const steerRad = Math.atan((lon * k) / (1 - lat * k))
+      this.state.servos[i] = this.roundServoAngle(90 + (steerRad * 180) / Math.PI)
+    }
   }
   
   /**
@@ -437,23 +507,14 @@ export class InputManager {
   }
   
   /**
-   * Point turn - front/rear steer opposite, pivot around middle wheels
+   * Point turn - front/rear steer opposite, pivot around the middle wheels.
+   * Uses the same true-Ackermann geometry as ackermann mode (front + rear
+   * counter-steer, inner wheels sharper) so the pivot circle is as tight as the
+   * ±ACKERMANN_MAX_STEER_DEG lock allows.
    */
   private applyPointTurnSteering(forward: number, turn: number): void {
-    // Middle wheels straight
-    this.state.servos[2] = 90
-    this.state.servos[3] = 90
-    
-    // Front wheels steer based on turn
-    const frontSteer = 90 + turn * 45
-    this.state.servos[0] = this.roundServoAngle(frontSteer)
-    this.state.servos[1] = this.roundServoAngle(frontSteer)
-    
-    // Rear wheels steer opposite to front
-    const rearSteer = 90 - turn * 45
-    this.state.servos[4] = this.roundServoAngle(rearSteer)
-    this.state.servos[5] = this.roundServoAngle(rearSteer)
-    
+    this.applyAckermannGeometry(turn)
+
     // All wheels drive at same speed
     const speed = this.clamp(forward, -1, 1)
     this.state.motors = [speed, speed, speed, speed, speed, speed]

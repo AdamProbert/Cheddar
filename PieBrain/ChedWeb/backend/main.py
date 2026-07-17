@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         flip_180=settings.camera_flip_180,
         enabled=settings.camera_enabled,
         is_noir=True,  # Set to True for NoIR cameras
-        awb_mode="manual",  # Use manual mode to allow color gain adjustments
+        awb_mode="auto",  # Auto white balance by default
         color_gains=(2.0, 1.2),  # Higher red gain to reduce purple tint on NoIR
     )
 

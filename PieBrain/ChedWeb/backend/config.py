@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     camera_enabled: bool = True
     camera_width: int = 640
     camera_height: int = 480
-    camera_framerate: int = 30
+    camera_framerate: int = 60
     camera_flip_180: bool = False  # Flip camera 180 degrees (hflip + vflip)
 
     # Safety
