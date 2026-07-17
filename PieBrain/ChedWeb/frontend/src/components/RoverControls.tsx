@@ -1,11 +1,16 @@
 /**
  * Rover control panel - displays input status and manual controls
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { useAppStore } from '../store'
-import { InputManager, type RoverInputState, type DriveMode } from '../utils/inputManager'
+import {
+  InputManager,
+  DEFAULT_SPEED_SCALE,
+  type RoverInputState,
+  type DriveMode,
+} from '../utils/inputManager'
 import { Gamepad2 } from 'lucide-react'
 
 const DRIVE_MODE_LABELS: Record<DriveMode, string> = {
@@ -28,6 +33,7 @@ export function RoverControls() {
   const [inputState, setInputState] = useState<RoverInputState | null>(null)
   const [gamepadConnected, setGamepadConnected] = useState(false)
   const [inputManager] = useState(() => new InputManager())
+  const [speedPercent, setSpeedPercent] = useState(Math.round(DEFAULT_SPEED_SCALE * 100))
   const { webrtc, connectionState } = useAppStore()
   
   const isConnected = connectionState === 'connected'
@@ -83,6 +89,17 @@ export function RoverControls() {
   const handleDriveModeChange = (mode: DriveMode) => {
     inputManager.setDriveMode(mode)
   }
+
+  const handleSpeedChange = (percent: number) => {
+    setSpeedPercent(percent)
+    inputManager.setSpeedScale(percent / 100)
+  }
+
+  // The window-level driving keys and the slider both want the arrow keys, so
+  // keep arrows on the slider while it has focus and let E-stop through.
+  const handleSpeedKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key.startsWith('Arrow')) event.stopPropagation()
+  }
   
   // Format motor speed for display
   const formatSpeed = (speed: number): string => {
@@ -121,6 +138,42 @@ export function RoverControls() {
         
         {isConnected && (
           <>
+            {/* Speed Limit */}
+            <div className="p-3 bg-satisfactory-panel/50 rounded border border-satisfactory-orange/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-satisfactory-orange uppercase">
+                  Speed Limit
+                </span>
+                <span className="font-mono text-sm font-bold text-satisfactory-orange">
+                  {speedPercent}%
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={speedPercent}
+                  aria-label="Speed limit"
+                  onChange={e => handleSpeedChange(Number(e.target.value))}
+                  onKeyDown={handleSpeedKey}
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded bg-muted accent-satisfactory-orange"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleSpeedChange(Math.round(DEFAULT_SPEED_SCALE * 100))}
+                  className="h-8 text-xs shrink-0"
+                >
+                  Reset
+                </Button>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">
+                Caps full stick/key deflection at {speedPercent}% motor power.
+              </div>
+            </div>
+
             {/* Drive Mode Selection */}
             {inputState && (
               <div className="p-3 bg-satisfactory-panel/50 rounded border border-satisfactory-cyan/30">

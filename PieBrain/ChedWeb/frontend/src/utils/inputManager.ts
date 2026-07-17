@@ -18,10 +18,15 @@ export interface RoverInputState {
   
   // Current drive mode
   driveMode: DriveMode
-  
+
+  // Fraction of full motor power the stick/key range maps to [0.0 to 1.0]
+  speedScale: number
+
   // E-stop flag
   emergencyStop: boolean
 }
+
+export const DEFAULT_SPEED_SCALE = 0.75
 
 export type InputCallback = (state: RoverInputState) => void
 
@@ -98,6 +103,7 @@ export class InputManager {
       motors: [0, 0, 0, 0, 0, 0],
       servos: [90, 90, 90, 90, 90, 90], // Neutral position (straight)
       driveMode: 'ackermann', // Default to car-like steering
+      speedScale: DEFAULT_SPEED_SCALE,
       emergencyStop: false,
     }
   }
@@ -341,6 +347,12 @@ export class InputManager {
         this.applyPointTurnSteering(forward, turn)
         break
     }
+
+    // Each mode writes full-range speeds; scale them down last so the limit
+    // applies uniformly regardless of mode.
+    for (let i = 0; i < 6; i++) {
+      this.state.motors[i] *= this.state.speedScale
+    }
   }
   
   /**
@@ -549,5 +561,19 @@ export class InputManager {
   setDriveMode(mode: DriveMode): void {
     this.state.driveMode = mode
     this.emitState()
+  }
+
+  /**
+   * Get current speed scale
+   */
+  getSpeedScale(): number {
+    return this.state.speedScale
+  }
+
+  /**
+   * Set the fraction of full motor power the input range maps to [0.0 to 1.0]
+   */
+  setSpeedScale(scale: number): void {
+    this.state.speedScale = this.clamp(scale, 0, 1)
   }
 }
