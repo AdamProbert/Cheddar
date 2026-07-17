@@ -36,48 +36,54 @@ export const DEFAULT_SPEED_SCALE = 0.75
  * vehicle rotates about a point on its lateral centreline (the middle axle).
  * That roughly halves the turning radius versus steering the front alone.
  *
- * Because both axles pivot about the same instantaneous centre, the inner wheel
- * on each axle must turn sharper than the outer one (true Ackermann) or the
- * tyres scrub. We compute each wheel's angle from its position relative to the
- * turn centre, so the inner/outer split falls out of the geometry.
- *
- * Positions are in units of half the track width (so the side offset is ±1).
- * ACKERMANN_AXLE_OFFSET is then the front/rear axle's forward distance from the
- * rover centre as a multiple of that half-track. 1.0 == "as far forward as the
- * wheels are out to the side" (a square-ish footprint). Measure and retune this
- * if the inner/outer split ever looks off.
+ * Geometrically-true Ackermann makes the inner wheel of each axle turn sharper
+ * than the outer. At a tight full lock that split is extreme — the outer wheel
+ * barely turns — so ACKERMANN_DIFFERENTIAL dials it back (see below). The inner
+ * wheel always reaches ACKERMANN_MAX_STEER_DEG at full lock regardless, so the
+ * turning circle stays as tight no matter how the differential is set.
  */
-const ACKERMANN_AXLE_OFFSET = 1.0
 
 /**
- * Sharpest steer angle (degrees from straight) any single wheel is allowed to
- * reach, hit by the inner front wheel at full lock. Larger = tighter circle,
- * but must stay within what the steering linkage can travel without binding.
+ * Sharpest steer angle (degrees from straight) any single wheel reaches, hit by
+ * the inner front wheel at full lock. Larger = tighter circle, but must stay
+ * within what the steering linkage can travel without binding.
  */
 const ACKERMANN_MAX_STEER_DEG = 75
 
 /**
+ * How much the outer wheel eases off relative to the inner one, in [0, 1]:
+ *   1.0 = full geometric Ackermann — biggest inner/outer split (outer barely
+ *         moves at a tight lock).
+ *   0.0 = parallel steer — both wheels on an axle share the same angle.
+ * Values in between trade tyre scrub for a more even, natural-looking split.
+ * Only affects the outer wheel; the inner still hits ACKERMANN_MAX_STEER_DEG.
+ */
+const ACKERMANN_DIFFERENTIAL = 0.5
+
+/**
  * Per-wheel position for the Ackermann solver, indexed 0=FL,1=FR,2=ML,3=MR,
- * 4=RL,5=RR. `lon` is forward offset from centre (front +, rear -); `lat` is
- * the sideways offset with the right side +1, so a positive turn (steer right)
- * makes the right-side wheels the inner, sharper pair.
+ * 4=RL,5=RR. `lon` is forward offset from centre (front +1, middle 0, rear -1);
+ * `lat` is the sideways offset with the right side +1, so a positive turn (steer
+ * right) makes the right-side wheels the inner, sharper pair.
  */
 const ACKERMANN_WHEEL_GEOMETRY: ReadonlyArray<{ lon: number; lat: number }> = [
-  { lon: ACKERMANN_AXLE_OFFSET, lat: -1 }, // 0 FL
-  { lon: ACKERMANN_AXLE_OFFSET, lat: +1 }, // 1 FR
+  { lon: +1, lat: -1 }, // 0 FL
+  { lon: +1, lat: +1 }, // 1 FR
   { lon: 0, lat: -1 }, // 2 ML
   { lon: 0, lat: +1 }, // 3 MR
-  { lon: -ACKERMANN_AXLE_OFFSET, lat: -1 }, // 4 RL
-  { lon: -ACKERMANN_AXLE_OFFSET, lat: +1 }, // 5 RR
+  { lon: -1, lat: -1 }, // 4 RL
+  { lon: -1, lat: +1 }, // 5 RR
 ]
 
 /**
  * Maximum path curvature (1/turn-radius), reached at full stick. Derived so the
- * inner front wheel sits exactly at ACKERMANN_MAX_STEER_DEG when |turn| == 1:
- * tan(maxSteer) = axleOffset / (R - halfTrack), with halfTrack == 1.
+ * inner front wheel sits exactly at ACKERMANN_MAX_STEER_DEG when |turn| == 1,
+ * for whatever ACKERMANN_DIFFERENTIAL is set to:
+ *   atan(k / (1 - D·k)) = maxSteer  ->  k = tan(maxSteer) / (1 + D·tan(maxSteer))
  */
 const ACKERMANN_MAX_CURVATURE =
-  1 / (1 + ACKERMANN_AXLE_OFFSET / Math.tan((ACKERMANN_MAX_STEER_DEG * Math.PI) / 180))
+  Math.tan((ACKERMANN_MAX_STEER_DEG * Math.PI) / 180) /
+  (1 + ACKERMANN_DIFFERENTIAL * Math.tan((ACKERMANN_MAX_STEER_DEG * Math.PI) / 180))
 
 export type InputCallback = (state: RoverInputState) => void
 
@@ -432,13 +438,13 @@ export class InputManager {
     const k = this.clamp(turn, -1, 1) * ACKERMANN_MAX_CURVATURE
 
     // Each wheel's rolling direction is perpendicular to the line from the turn
-    // centre (on the lateral centreline at distance 1/k) to the wheel. That
-    // works out to steer = atan(lon * k / (1 - lat * k)); rear wheels have
-    // negative lon and so counter-steer automatically, middle wheels lon 0 stay
-    // straight, and the inner wheel of each axle turns sharper than the outer.
+    // centre to the wheel: steer = atan(lon * k / (1 - lat * D * k)). Rear wheels
+    // have negative lon and so counter-steer automatically, middle wheels lon 0
+    // stay straight, and ACKERMANN_DIFFERENTIAL (D) scales how much the outer
+    // wheel eases off relative to the inner (D=0 -> both equal / parallel).
     for (let i = 0; i < 6; i++) {
       const { lon, lat } = ACKERMANN_WHEEL_GEOMETRY[i]
-      const steerRad = Math.atan((lon * k) / (1 - lat * k))
+      const steerRad = Math.atan((lon * k) / (1 - lat * ACKERMANN_DIFFERENTIAL * k))
       this.state.servos[i] = this.roundServoAngle(90 + (steerRad * 180) / Math.PI)
     }
   }
